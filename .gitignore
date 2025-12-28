@@ -4,7 +4,6 @@ Thumbs.db
 # Node / TS
 node_modules/
 dist/
-build/
 out/
 coverage/
 *.log
@@ -24,3 +23,5 @@ test-results/
 
 # Claude Code artifacts
 .claude/
+
+specs/
