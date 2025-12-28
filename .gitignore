@@ -1,0 +1,26 @@
+.DS_Store
+Thumbs.db
+
+# Node / TS
+node_modules/
+dist/
+build/
+out/
+coverage/
+*.log
+.env*
+.git
+
+# Playwright
+playwright-report/
+test-results/
+
+# IDE
+.vscode/
+.idea/
+
+# Codex CLI artifacts
+.codex/
+
+# Claude Code artifacts
+.claude/

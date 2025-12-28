@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "Node",
+    "types": ["node"]
+  },
+  "include": ["src/main", "src/preload", "electron.vite.config.ts"]
+}
+

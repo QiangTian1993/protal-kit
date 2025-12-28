@@ -1,0 +1,70 @@
+{
+  "name": "portal-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight Electron wrapper to organize and switch web apps with profiles.",
+  "author": "Portal Kit Team",
+  "license": "MIT",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "icons": "bash scripts/make-icons.sh",
+    "prepack": "npm run icons || true && node scripts/generate-icons.mjs && npm run build",
+    "predist": "npm run icons || true && node scripts/generate-icons.mjs && npm run build",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "lint": "eslint .",
+    "format": "prettier -w .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "playwright test"
+  },
+  "build": {
+    "appId": "com.portal.kit",
+    "productName": "Portal Kit",
+    "files": [
+      "dist/**",
+      "package.json"
+    ],
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icons/icon.icns"
+    },
+    "win": {
+      "icon": "build/icons/icon.ico"
+    },
+    "linux": {
+      "icon": "build/icons/icon.png",
+      "category": "Utility"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "electron": "^36.0.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.1.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.0",
+    "playwright": "^1.49.0",
+    "prettier": "^3.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  }
+}

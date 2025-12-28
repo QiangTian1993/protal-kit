@@ -1,0 +1,178 @@
+import React, { useEffect, useState, useMemo } from 'react'
+import { Switcher } from '../features/switcher/Switcher'
+import { useAppRuntime } from './useAppRuntime'
+import { setLayoutSize } from '../lib/ipc/layout'
+import { closeSettingsWindow, openSettingsWindow } from '../lib/ipc/settings'
+import { IconSettings, IconGlobe, IconSidebarExpand, IconSidebarCollapse, IconImmersiveOn, IconImmersiveOff } from '../components/Icons'
+
+export function App() {
+  const runtime = useAppRuntime()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [immersive, setImmersive] = useState(false)
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false)
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null)
+
+  const TOPBAR_HEIGHT = 38
+  const SIDEBAR_WIDTH = 56
+  const ALL_GROUP_VALUE = '__portal_kit_all_groups__'
+
+  const topbarHeight = immersive ? 0 : TOPBAR_HEIGHT
+  const sidebarWidth = sidebarCollapsed || immersive ? 0 : SIDEBAR_WIDTH
+
+  const activeAppName = useMemo(() => {
+    return runtime.activeProfile?.name ?? ''
+  }, [runtime.activeProfile])
+
+  const groupOptions = useMemo(() => {
+    const map = new Map<string, { name: string; pinnedCount: number }>()
+    for (const profile of runtime.profiles) {
+      const key = (profile.group ?? '').trim()
+      const existing = map.get(key) ?? { name: key || '未分组', pinnedCount: 0 }
+      if (profile.pinned ?? true) existing.pinnedCount += 1
+      map.set(key, existing)
+    }
+    return [...map.entries()]
+      .map(([key, value]) => ({ key, ...value }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [runtime.profiles])
+
+  useEffect(() => {
+    if (activeGroupKey === null) return
+    if (groupOptions.some((g) => g.key === activeGroupKey)) return
+    setActiveGroupKey(null)
+  }, [activeGroupKey, groupOptions])
+
+  useEffect(() => {
+    void setLayoutSize({ sidebarWidth, topbarHeight })
+  }, [sidebarWidth, topbarHeight])
+
+  useEffect(() => {
+    const unsubToggle = window.portalKit.on('ui.sidebar.toggle', () => {
+      setSidebarCollapsed((prev) => !prev)
+    })
+    const unsubSettings = window.portalKit.on('ui.settings.drawer', (payload: { opened: boolean }) => {
+      setSettingsDrawerOpen(payload.opened)
+    })
+    const unsubImmersive = window.portalKit.on('ui.immersive.toggle', (payload: { enabled: boolean }) => {
+      setImmersive(Boolean(payload.enabled))
+    })
+    return () => {
+      unsubToggle()
+      unsubSettings()
+      unsubImmersive()
+    }
+  }, [])
+
+  const layoutStyle = {
+    '--sidebar-width': `${sidebarWidth}px`,
+    '--topbar-height': `${topbarHeight}px`
+  } as React.CSSProperties
+
+  return (
+    <div className={`layout ${sidebarCollapsed ? 'isSidebarHidden' : ''}`} style={layoutStyle}>
+      {/* Top Bar */}
+      {!immersive && (
+      <div className="topbar">
+        <div className="topbarLeading">
+          <select
+            className="topbarGroupSelect"
+            value={activeGroupKey === null ? ALL_GROUP_VALUE : activeGroupKey}
+            onChange={(e) => {
+              const next = e.target.value
+              setActiveGroupKey(next === ALL_GROUP_VALUE ? null : next)
+            }}
+            aria-label="选择分组"
+            disabled={groupOptions.length === 0}
+          >
+            <option value={ALL_GROUP_VALUE}>全部分组</option>
+            {groupOptions.map((group) => (
+              <option key={group.key || 'ungrouped'} value={group.key}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="topbarCenter">
+          <span className="topbarTitle" aria-current={activeAppName ? 'page' : undefined}>
+            {activeAppName || 'Portal Kit'}
+          </span>
+        </div>
+        <div className="topbarTrailing">
+          <button
+            className="topbarAction"
+            type="button"
+            onClick={() => setImmersive((prev) => !prev)}
+            aria-label={immersive ? '退出沉浸模式' : '进入沉浸模式'}
+            title={immersive ? '退出沉浸模式 (⌘⇧M)' : '进入沉浸模式 (⌘⇧M)'}
+          >
+            {immersive ? <IconImmersiveOn width={15} height={15} /> : <IconImmersiveOff width={15} height={15} />}
+          </button>
+          <button
+            className="topbarAction"
+            type="button"
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+            title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+          >
+            {sidebarCollapsed ? <IconSidebarExpand /> : <IconSidebarCollapse />}
+          </button>
+        </div>
+      </div>
+      )}
+
+      <div className="layoutBody">
+        {/* 侧边栏 */}
+        {!immersive && (
+        <div className={`sidebar ${sidebarCollapsed ? 'isCollapsed' : ''}`}>
+          {!sidebarCollapsed && (
+            <>
+              <Switcher
+                profiles={runtime.profiles}
+                activeProfileId={runtime.activeProfileId}
+                loadingProfileId={
+                  runtime.loadState.state === 'loading' ? runtime.loadState.profileId : null
+                }
+                activeGroupKey={activeGroupKey}
+              />
+              <div className="sidebarSpacer" />
+              <button
+                className="sidebarAction"
+                type="button"
+                onClick={() =>
+                  void (settingsDrawerOpen ? closeSettingsWindow() : openSettingsWindow())
+                }
+                aria-label={settingsDrawerOpen ? '关闭设置' : '打开设置'}
+                title="设置"
+              >
+                <IconSettings />
+              </button>
+            </>
+          )}
+        </div>
+        )}
+
+        {/* 主内容区 */}
+        <div className="content">
+          {!runtime.activeProfile ? (
+            <div className="hint">
+              <IconGlobe className="hintIcon" />
+              <div>选择或添加一个 Web 应用开始使用</div>
+              <div className="textMuted" style={{ marginTop: 8, fontSize: 12 }}>
+                侧边栏管理应用，右侧显示网页内容
+              </div>
+            </div>
+          ) : runtime.loadState.state === 'failed' &&
+            runtime.loadState.profileId === runtime.activeProfile.id ? (
+            <div className="hint">
+              <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>加载失败</div>
+              <div className="mono">{runtime.loadState.message}</div>
+              <div className="textMuted" style={{ marginTop: 12 }}>
+                请检查网络连接或允许域名设置
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}

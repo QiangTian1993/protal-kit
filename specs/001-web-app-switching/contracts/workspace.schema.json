@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portal-kit.local/schemas/workspace.schema.json",
+  "title": "Workspace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "openProfileIds", "perProfileState", "updatedAt"],
+  "properties": {
+    "schemaVersion": { "type": "number", "const": 1 },
+    "activeProfileId": { "type": "string", "minLength": 1 },
+    "openProfileIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "perProfileState": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lastUrl": { "type": "string", "format": "uri" },
+          "lastActivatedAt": { "type": "string", "format": "date-time" },
+          "notes": { "type": "string", "maxLength": 2000 }
+        }
+      }
+    },
+    "windowBounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 200, "maximum": 10000 },
+        "height": { "type": "number", "minimum": 200, "maximum": 10000 }
+      }
+    },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}
