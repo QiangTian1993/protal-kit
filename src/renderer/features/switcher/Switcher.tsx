@@ -1,15 +1,34 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState, useLayoutEffect, useEffect } from 'react'
 import type { WebAppProfile } from '../../../shared/types'
 import { batchUpdateProfiles } from '../../lib/ipc/profiles'
 import { switchProfile } from '../../lib/ipc/workspace'
 import { computePinnedReorderItems, normalizeProfileGroup, sortPinnedProfiles } from '../../utils/profileReorder'
 
-function getInitials(name: string) {
+function getInitials(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) return '?'
-  const parts = trimmed.split(/\s+/)
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
+
+  // 移除特殊字符，只保留字母、数字、中文、空格
+  const cleaned = trimmed.replace(/[^\p{L}\p{N}\s]/gu, '')
+  if (!cleaned) {
+    // 如果清理后为空，使用原始名称的第一个字符
+    return trimmed.charAt(0).toUpperCase()
+  }
+
+  const parts = cleaned.split(/\s+/).filter(p => p.length > 0)
+
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) {
+    // 单个词：取前1-2个字符
+    const word = parts[0]
+    // 中文或其他多字节字符只取1个
+    return word.length === 1 || /[\p{Script=Han}]/u.test(word.charAt(0))
+      ? word.charAt(0).toUpperCase()
+      : word.slice(0, 2).toUpperCase()
+  }
+
+  // 多个词：取前两个词的首字母
+  return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase()
 }
 
 function toFileUrl(filePath: string) {
@@ -40,16 +59,24 @@ function getIconUrls(profile: WebAppProfile): string[] {
 
 function AppIcon(props: { profile: WebAppProfile; loading?: boolean }) {
   const [urlIndex, setUrlIndex] = useState(0)
+  const [imageError, setImageError] = useState(false)
   const iconUrls = useMemo(() => getIconUrls(props.profile), [props.profile])
   const currentUrl = iconUrls[urlIndex] ?? null
   const allFailed = urlIndex >= iconUrls.length
+
+  // 当 profile 改变时重置状态
+  useEffect(() => {
+    setUrlIndex(0)
+    setImageError(false)
+  }, [props.profile.id])
 
   if (props.loading) {
     return <span className="spinner" style={{ width: 16, height: 16 }} />
   }
 
-  if (!currentUrl || allFailed) {
-    return <span>{getInitials(props.profile.name)}</span>
+  // 如果没有图标URL或全部失败或图片加载错误，显示首字母
+  if (!currentUrl || allFailed || imageError) {
+    return <span className="switcherInitials">{getInitials(props.profile.name)}</span>
   }
 
   return (
@@ -58,7 +85,26 @@ function AppIcon(props: { profile: WebAppProfile; loading?: boolean }) {
       src={currentUrl}
       alt={props.profile.name}
       draggable={false}
-      onError={() => setUrlIndex((prev) => prev + 1)}
+      onError={() => {
+        // 尝试下一个URL
+        if (urlIndex < iconUrls.length - 1) {
+          setUrlIndex((prev) => prev + 1)
+        } else {
+          // 所有URL都失败了，显示首字母
+          setImageError(true)
+        }
+      }}
+      onLoad={(e) => {
+        // 检查图片是否真实加载成功（非0x0）
+        const img = e.currentTarget
+        if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+          if (urlIndex < iconUrls.length - 1) {
+            setUrlIndex((prev) => prev + 1)
+          } else {
+            setImageError(true)
+          }
+        }
+      }}
       loading="lazy"
     />
   )
@@ -82,6 +128,7 @@ export function Switcher({
   activeGroupKey = null
 }: SwitcherProps) {
   const ignoreClickUntil = useRef(0)
+  const switcherRef = useRef<HTMLDivElement>(null)
   const pinned = useMemo(() => sortPinnedProfiles(profiles), [profiles])
 
   const groups = useMemo(() => {
@@ -97,6 +144,27 @@ export function Switcher({
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [indicatorTop, setIndicatorTop] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    if (!activeProfileId || !switcherRef.current) {
+      setIndicatorTop(null)
+      return
+    }
+
+    const activeButton = switcherRef.current.querySelector(
+      `[data-profile-id="${activeProfileId}"]`
+    ) as HTMLElement
+
+    if (activeButton) {
+      const containerRect = switcherRef.current.getBoundingClientRect()
+      const buttonRect = activeButton.getBoundingClientRect()
+      const relativeTop = buttonRect.top - containerRect.top + buttonRect.height / 2
+      setIndicatorTop(relativeTop)
+    } else {
+      setIndicatorTop(null)
+    }
+  }, [activeProfileId, groups, activeGroupKey])
 
   async function handleDrop(sourceId: string, targetId: string) {
     const items = computePinnedReorderItems({ pinned, sourceId, targetId })
@@ -114,29 +182,38 @@ export function Switcher({
   }
 
   return (
-    <div className="switcher" role="tablist" aria-label="应用列表">
-      {visibleGroups.map((group, groupIndex) => (
-        <React.Fragment key={group.key || 'ungrouped'}>
-          {activeGroupKey === null && groupIndex > 0 && (
-            <div
-              className="switcherGroupDivider"
-              role="separator"
-              aria-label={group.name}
-              title={group.name}
-            />
-          )}
-          {group.items.map((p) => {
-            const isActive = activeProfileId === p.id
-            const isLoading = loadingProfileId === p.id
-            const isDragOver = dragOverId === p.id
-            const isDragging = draggingId === p.id
-            const groupName = normalizeProfileGroup(p.group)
+    <div className="switcherWrapper">
+      {indicatorTop !== null && (
+        <div
+          className="switcherIndicator"
+          style={{ top: `${indicatorTop}px` }}
+          aria-hidden="true"
+        />
+      )}
+      <div className="switcher" role="tablist" aria-label="应用列表" ref={switcherRef}>
+        {visibleGroups.map((group, groupIndex) => (
+          <React.Fragment key={group.key || 'ungrouped'}>
+            {activeGroupKey === null && groupIndex > 0 && (
+              <div
+                className="switcherGroupDivider"
+                role="separator"
+                aria-label={group.name}
+                title={group.name}
+              />
+            )}
+            {group.items.map((p) => {
+              const isActive = activeProfileId === p.id
+              const isLoading = loadingProfileId === p.id
+              const isDragOver = dragOverId === p.id
+              const isDragging = draggingId === p.id
+              const groupName = normalizeProfileGroup(p.group)
 
-            return (
-              <button
-                key={p.id}
-                className={`switcherButton ${isActive ? 'isActive' : ''} ${isDragOver ? 'isDragOver' : ''} ${isDragging ? 'isDragging' : ''}`}
-                draggable={true}
+              return (
+                <button
+                  key={p.id}
+                  data-profile-id={p.id}
+                  className={`switcherButton ${isActive ? 'isActive' : ''} ${isDragOver ? 'isDragOver' : ''} ${isDragging ? 'isDragging' : ''}`}
+                  draggable={true}
                 onDragStart={(e) => {
                   setDraggingId(p.id)
                   e.dataTransfer.effectAllowed = 'move'
@@ -172,10 +249,11 @@ export function Switcher({
               >
                 <AppIcon profile={p} loading={isLoading} />
               </button>
-            )
-          })}
-        </React.Fragment>
-      ))}
+              )
+            })}
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   )
 }

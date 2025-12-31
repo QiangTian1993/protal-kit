@@ -4,6 +4,7 @@ Thumbs.db
 # Node / TS
 node_modules/
 dist/
+release/
 out/
 coverage/
 *.log

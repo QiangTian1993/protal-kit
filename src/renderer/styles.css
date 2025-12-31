@@ -516,6 +516,46 @@ html[data-platform='mac'] .topbarLeading {
 }
 
 /* Switcher */
+.switcherWrapper {
+  position: relative;
+  width: 100%;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  overflow-x: visible;
+  --scrollbar-size: 0px;
+  scrollbar-width: none;
+  -webkit-app-region: no-drag;
+}
+
+.switcherWrapper::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.switcherIndicator {
+  position: absolute;
+  left: 0;
+  width: 3px;
+  height: 18px;
+  background: var(--accent-color);
+  border-radius: 0 3px 3px 0;
+  transform: translateY(-50%);
+  transition: top 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.5);
+  z-index: 10;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .switcherIndicator {
+    box-shadow: 0 2px 10px rgba(10, 132, 255, 0.7);
+  }
+}
+
+html[data-theme='dark'] .switcherIndicator {
+  box-shadow: 0 2px 10px rgba(10, 132, 255, 0.7);
+}
+
 .switcher {
   display: flex;
   flex-direction: column;
@@ -523,12 +563,7 @@ html[data-platform='mac'] .topbarLeading {
   gap: 12px;
   width: 100%;
   padding: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-height: calc(100vh - 160px);
   -webkit-app-region: no-drag;
-  --scrollbar-size: 0px;
-  scrollbar-width: none;
 }
 
 .switcher::-webkit-scrollbar {
@@ -558,20 +593,8 @@ html[data-platform='mac'] .topbarLeading {
   cursor: pointer;
   position: relative;
   transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  overflow: hidden;
   border: none;
-  position: relative;
 }
-
-/* .switcherButton::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  border: 1px solid var(--app-icon-border);
-  pointer-events: none;
-  z-index: 3;
-} */
 
 .switcherButton > span {
   position: relative;
@@ -585,6 +608,45 @@ html[data-platform='mac'] .topbarLeading {
 
 .switcherButton.isActive {
   border: 2px solid var(--app-icon-active-border);
+  box-shadow:
+    0 0 0 3px rgba(0, 122, 255, 0.12),
+    0 4px 14px rgba(0, 122, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.switcherButton.isActive::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.22), rgba(0, 122, 255, 0.12));
+  z-index: 0;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .switcherButton.isActive {
+    box-shadow:
+      0 0 0 3px rgba(10, 132, 255, 0.15),
+      0 4px 18px rgba(10, 132, 255, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .switcherButton.isActive::after {
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.28), rgba(10, 132, 255, 0.16));
+  }
+}
+
+html[data-theme='dark'] .switcherButton.isActive {
+  box-shadow:
+    0 0 0 3px rgba(10, 132, 255, 0.15),
+    0 4px 18px rgba(10, 132, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme='dark'] .switcherButton.isActive::after {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.28), rgba(10, 132, 255, 0.16));
 }
 
 .switcherButton.isDragOver {
@@ -596,28 +658,6 @@ html[data-platform='mac'] .topbarLeading {
   opacity: 0.6;
 }
 
-/* .switcherButton.isActive {
-  background: var(--app-icon-active-bg);
-  box-shadow: inset 0 0 0 1px var(--app-icon-active-border);
-}
-
-.switcherButton.isActive::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 12px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent-color);
-  z-index: 2;
-}
-
-.switcherButton.isActive::after {
-  border-color: var(--app-icon-active-border);
-} */
-
 .switcherIcon {
   position: absolute;
   inset: 0;
@@ -628,7 +668,19 @@ html[data-platform='mac'] .topbarLeading {
   display: block;
   -webkit-user-drag: none;
   user-select: none;
-  z-index: 0;
+  z-index: 1;
+}
+
+.switcherInitials {
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: var(--text-primary);
+  user-select: none;
+  text-transform: uppercase;
 }
 
 .mutedText {

@@ -29,7 +29,7 @@
     ],
     "asar": true,
     "directories": {
-      "output": "dist"
+      "output": "release"
     },
     "mac": {
       "category": "public.app-category.productivity",
