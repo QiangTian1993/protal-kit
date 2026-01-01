@@ -81,6 +81,23 @@ export class WebAppManager {
     managed.view.webContents.reload()
   }
 
+  hideActiveView() {
+    if (!this.activeProfileId) return
+    const managed = this.views.get(this.activeProfileId)
+    if (!managed || !this.isAttached(managed.view)) return
+    this.win.removeBrowserView(managed.view)
+  }
+
+  showActiveView() {
+    if (!this.activeProfileId) return
+    const managed = this.views.get(this.activeProfileId)
+    if (!managed) return
+    if (!this.isAttached(managed.view)) {
+      this.win.addBrowserView(managed.view)
+      this.layoutView(managed.view)
+    }
+  }
+
   updateProfile(profile: WebAppProfile) {
     const managed = this.views.get(profile.id)
     if (!managed) return

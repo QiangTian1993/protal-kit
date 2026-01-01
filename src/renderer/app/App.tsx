@@ -4,6 +4,10 @@ import { useAppRuntime } from './useAppRuntime'
 import { setLayoutSize } from '../lib/ipc/layout'
 import { closeSettingsWindow, openSettingsWindow } from '../lib/ipc/settings'
 import { IconSettings, IconGlobe, IconSidebarExpand, IconSidebarCollapse, IconImmersiveOn, IconImmersiveOff } from '../components/Icons'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
+import { LoadingSkeleton, LoadingTimeout } from '../components/LoadingStates'
+import { reloadProfile } from '../lib/ipc/webapps'
+import { CommandPalette } from '../components/CommandPalette'
 
 export function App() {
   const runtime = useAppRuntime()
@@ -11,10 +15,13 @@ export function App() {
   const [immersive, setImmersive] = useState(false)
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false)
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null)
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const TOPBAR_HEIGHT = 38
   const SIDEBAR_WIDTH = 56
   const ALL_GROUP_VALUE = '__portal_kit_all_groups__'
+  const LOADING_TIMEOUT_MS = 30000 // 30秒超时
 
   const topbarHeight = immersive ? 0 : TOPBAR_HEIGHT
   const sidebarWidth = sidebarCollapsed || immersive ? 0 : SIDEBAR_WIDTH
@@ -46,6 +53,41 @@ export function App() {
     void setLayoutSize({ sidebarWidth, topbarHeight })
   }, [sidebarWidth, topbarHeight])
 
+  // 键盘快捷键
+  useKeyboardShortcuts({
+    profiles: runtime.profiles,
+    activeProfileId: runtime.activeProfileId
+  })
+
+  // 加载超时检测
+  useEffect(() => {
+    if (runtime.loadState.state === 'loading') {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true)
+      }, LOADING_TIMEOUT_MS)
+
+      return () => clearTimeout(timer)
+    } else {
+      setLoadingTimeout(false)
+    }
+  }, [runtime.loadState.state, LOADING_TIMEOUT_MS])
+
+  // Cmd+K 打开搜索面板
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey
+
+      if (cmdOrCtrl && e.key === 'k') {
+        e.preventDefault()
+        setCommandPaletteOpen(prev => !prev)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   useEffect(() => {
     const unsubToggle = window.portalKit.on('ui.sidebar.toggle', () => {
       setSidebarCollapsed((prev) => !prev)
@@ -69,6 +111,7 @@ export function App() {
   } as React.CSSProperties
 
   return (
+    <>
     <div className={`layout ${sidebarCollapsed ? 'isSidebarHidden' : ''}`} style={layoutStyle}>
       {/* Top Bar */}
       {!immersive && (
@@ -161,6 +204,23 @@ export function App() {
                 侧边栏管理应用，右侧显示网页内容
               </div>
             </div>
+          ) : runtime.loadState.state === 'loading' ? (
+            loadingTimeout ? (
+              <LoadingTimeout
+                onRetry={() => {
+                  if (runtime.activeProfile) {
+                    void reloadProfile(runtime.activeProfile.id)
+                  }
+                }}
+                onCancel={() => {
+                  if (runtime.activeProfile) {
+                    void reloadProfile(runtime.activeProfile.id)
+                  }
+                }}
+              />
+            ) : (
+              <LoadingSkeleton message={`正在加载 ${runtime.activeProfile.name}...`} />
+            )
           ) : runtime.loadState.state === 'failed' &&
             runtime.loadState.profileId === runtime.activeProfile.id ? (
             <div className="hint">
@@ -174,5 +234,15 @@ export function App() {
         </div>
       </div>
     </div>
+
+    {/* 全局搜索面板 */}
+    <CommandPalette
+      isOpen={commandPaletteOpen}
+      onClose={() => setCommandPaletteOpen(false)}
+      profiles={runtime.profiles}
+      activeProfileId={runtime.activeProfileId}
+      recentProfileIds={[]}
+    />
+    </>
   )
 }
