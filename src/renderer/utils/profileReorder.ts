@@ -14,7 +14,10 @@ function compareByGroupOrderName(a: WebAppProfile, b: WebAppProfile) {
 }
 
 export function sortPinnedProfiles(profiles: WebAppProfile[]) {
-  return [...profiles].filter((p) => p.pinned ?? true).sort(compareByGroupOrderName)
+  // 只显示固定应用，不显示临时应用
+  return [...profiles]
+    .filter((p) => !p.temporary && (p.pinned ?? true))
+    .sort(compareByGroupOrderName)
 }
 
 export function sortUnpinnedProfiles(profiles: WebAppProfile[]) {

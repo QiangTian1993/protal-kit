@@ -6,8 +6,9 @@ import { closeSettingsWindow, openSettingsWindow } from '../lib/ipc/settings'
 import { IconSettings, IconGlobe, IconSidebarExpand, IconSidebarCollapse, IconImmersiveOn, IconImmersiveOff } from '../components/Icons'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { LoadingSkeleton, LoadingTimeout } from '../components/LoadingStates'
-import { reloadProfile } from '../lib/ipc/webapps'
+import { reloadProfile, restoreProfile } from '../lib/ipc/webapps'
 import { CommandPalette } from '../components/CommandPalette'
+import { HibernatedView } from '../components/HibernatedView'
 
 export function App() {
   const runtime = useAppRuntime()
@@ -204,6 +205,16 @@ export function App() {
                 侧边栏管理应用，右侧显示网页内容
               </div>
             </div>
+          ) : runtime.workspace?.perProfileState[runtime.activeProfile.id]?.status === 'hibernated' ? (
+            <HibernatedView
+              profileName={runtime.activeProfile.name}
+              snapshotPath={runtime.workspace.perProfileState[runtime.activeProfile.id]?.snapshotPath}
+              onRestore={() => {
+                if (runtime.activeProfile) {
+                  void restoreProfile(runtime.activeProfile.id)
+                }
+              }}
+            />
           ) : runtime.loadState.state === 'loading' ? (
             loadingTimeout ? (
               <LoadingTimeout

@@ -3,7 +3,10 @@ import { z } from 'zod'
 const runtimeStateSchema = z.object({
   lastUrl: z.string().url().optional(),
   lastActivatedAt: z.string().datetime().optional(),
-  notes: z.string().max(2000).optional()
+  notes: z.string().max(2000).optional(),
+  status: z.enum(['active', 'background', 'hibernated']).optional().default('background'),
+  hibernatedAt: z.string().datetime().optional(),
+  snapshotPath: z.string().optional()
 })
 
 export const workspaceSchema = z.object({

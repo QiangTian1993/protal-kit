@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LibraryView } from '../features/library/LibraryView'
 import { ClearData } from '../features/settings/ClearData'
+import { RoutingSettings } from '../features/settings/RoutingSettings'
 import { useAppRuntime } from './useAppRuntime'
 import { useThemeMode } from '../hooks/useThemeMode'
 import { closeSettingsWindow } from '../lib/ipc/settings'
@@ -85,6 +86,11 @@ export function SettingsApp() {
             void runtime.refreshWorkspace()
           }}
         />
+      </div>
+
+      <div className="settingsSection">
+        <div className="sectionTitle">链接路由</div>
+        <RoutingSettings profiles={runtime.profiles} />
       </div>
 
       <div className="settingsSection">

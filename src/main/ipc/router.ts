@@ -6,10 +6,12 @@ import { registerWorkspaceHandlers } from './handlers/workspace'
 import { registerDataHandlers } from './handlers/data'
 import { registerWebAppsHandlers } from './handlers/webapps'
 import { registerAppHandlers } from './handlers/app'
+import { registerRoutingHandlers } from './handlers/routing'
 import type { WebAppManager } from '../webapps/webapp-manager'
 import type { AppConfigStore } from '../storage/app-config-store'
 import type { Logger } from '../observability/logger'
 import type { SettingsWindowManager } from '../windows/settings-window'
+import type { LinkRouterService } from '../routing/link-router-service'
 
 export interface IpcContext {
   profiles: ProfileStore
@@ -18,6 +20,7 @@ export interface IpcContext {
   logger: Logger
   settingsWindow: SettingsWindowManager
   appConfig: AppConfigStore
+  linkRouter: LinkRouterService
   notify: (channel: string, payload: unknown) => void
 }
 
@@ -27,4 +30,5 @@ export function registerIpcHandlers(ctx: IpcContext) {
   registerWorkspaceHandlers(ipcMain, ctx)
   registerDataHandlers(ipcMain, ctx)
   registerWebAppsHandlers(ipcMain, ctx)
+  registerRoutingHandlers(ipcMain, ctx)
 }

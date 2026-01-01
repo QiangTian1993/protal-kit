@@ -31,17 +31,21 @@ export const webAppProfileSchema = z.object({
   externalLinks: z.object({
     policy: z.enum(['open-in-popup', 'open-in-system', 'block', 'ask'])
   }),
+  temporary: z.boolean().optional().default(false), // 标记为临时应用
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 })
 
 export const webAppProfileInputSchema = webAppProfileSchema
   .omit({
+    id: true,
     createdAt: true,
     updatedAt: true
   })
   .extend({
-    allowedOrigins: allowedOriginsInputSchema
+    id: z.string().min(1).optional(), // id 可选，由 ProfileStore 生成
+    allowedOrigins: allowedOriginsInputSchema,
+    temporary: z.boolean().optional() // 允许输入 temporary 字段
   })
 
 export function normalizeAllowedOrigins(startUrl: string, allowedOrigins: string[]) {

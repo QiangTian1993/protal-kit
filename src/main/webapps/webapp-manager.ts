@@ -12,6 +12,8 @@ import { errorPageUrl, loadingPageUrl } from './system-pages'
 import { PerfTracker } from '../observability/perf'
 import type { BrowserView } from 'electron'
 import { attachNavigationGuards } from '../policy/navigation-hooks'
+import { snapshotPath } from '../storage/paths'
+import { writeFileSync, unlinkSync, existsSync } from 'node:fs'
 
 export class WebAppManager {
   private win: BrowserWindow
@@ -21,9 +23,12 @@ export class WebAppManager {
   private notify: (channel: string, payload: unknown) => void
   private perf = new PerfTracker()
   private views = new Map<string, ManagedView>()
+  private tempProfiles = new Map<string, WebAppProfile>() // 内存中的临时应用
   private activeProfileId: string | null = null
   private maxKeptAlive = 10
   private layoutConfig = { sidebarWidth: UI_SIDEBAR_WIDTH, topbarHeight: UI_TOPBAR_HEIGHT, rightInset: 0 }
+  private idleTimers = new Map<string, NodeJS.Timeout>()
+  private idleTimeoutMs = 5 * 60 * 1000 // 5分钟空闲后休眠
 
   constructor(args: {
     win: BrowserWindow
@@ -46,12 +51,44 @@ export class WebAppManager {
     await this.switchToProfile(profileId)
   }
 
+  async openProfileWithUrl(profileId: string, url: string) {
+    await this.ensureView(profileId)
+    await this.switchToProfile(profileId)
+
+    // 加载指定的 URL
+    const managed = this.views.get(profileId)
+    if (managed) {
+      this.logger.info('webapps.openWithUrl', { profileId, url })
+      await managed.view.webContents.loadURL(url)
+    }
+  }
+
+  registerTempProfile(profile: WebAppProfile) {
+    // 注册临时应用到内存
+    this.tempProfiles.set(profile.id, profile)
+    this.logger.info('webapps.tempProfileRegistered', { profileId: profile.id })
+  }
+
+  removeTempProfile(profileId: string) {
+    // 从临时应用列表中移除
+    this.tempProfiles.delete(profileId)
+    this.logger.info('webapps.tempProfileRemoved', { profileId })
+  }
+
+  getTempProfiles(): WebAppProfile[] {
+    return Array.from(this.tempProfiles.values())
+  }
+
   async switchToProfile(profileId: string) {
     const from = this.activeProfileId
     if (from === profileId) return
     await this.ensureView(profileId)
-    if (from) this.detach(from)
+    if (from) {
+      this.detach(from)
+      this.startIdleTimer(from) // 启动空闲计时器
+    }
     this.attach(profileId)
+    this.stopIdleTimer(profileId) // 停止空闲计时器
     this.activeProfileId = profileId
     logSwitch(this.logger, from, profileId)
     this.perf.markSwitchStart(profileId)
@@ -174,8 +211,16 @@ export class WebAppManager {
       v.lastActivatedAt = Date.now()
       return
     }
-    const profiles = await this.profiles.list()
-    const profile = profiles.find((p) => p.id === profileId)
+
+    // 先检查临时应用
+    let profile = this.tempProfiles.get(profileId)
+
+    // 如果不是临时应用，从持久化存储中查找
+    if (!profile) {
+      const profiles = await this.profiles.list()
+      profile = profiles.find((p) => p.id === profileId)
+    }
+
     if (!profile) throw new Error(`profile_not_found:${profileId}`)
 
     const view = createWebAppView(profile)
@@ -216,9 +261,9 @@ export class WebAppManager {
     for (const id of evicted) {
       const m = this.views.get(id)
       if (!m) continue
-      m.view.webContents.destroy()
-      this.views.delete(id)
-      this.logger.info('webapps.evict', { profileId: id })
+      // 优先休眠而不是直接销毁
+      this.logger.info('webapps.evict.hibernate', { profileId: id })
+      await this.hibernateProfile(id)
     }
   }
 
@@ -271,6 +316,117 @@ export class WebAppManager {
     }
     ws.updatedAt = new Date().toISOString()
     await this.workspaceStore.save(ws)
+  }
+
+  async hibernateProfile(profileId: string) {
+    const managed = this.views.get(profileId)
+    if (!managed) {
+      this.logger.warn('hibernate.profileNotFound', { profileId })
+      return
+    }
+
+    // 不休眠当前活跃的应用
+    if (this.activeProfileId === profileId) {
+      this.logger.info('hibernate.skipActive', { profileId })
+      return
+    }
+
+    // 检查是否正在播放媒体
+    if (managed.view.webContents.isCurrentlyAudible()) {
+      this.logger.info('hibernate.skipAudible', { profileId })
+      return
+    }
+
+    try {
+      // 捕获截图
+      const image = await managed.view.webContents.capturePage()
+      const imagePath = snapshotPath(profileId)
+      writeFileSync(imagePath, image.toPNG())
+
+      // 更新 workspace 状态
+      const ws = await this.workspaceStore.load()
+      ws.perProfileState[profileId] = {
+        ...(ws.perProfileState[profileId] ?? {}),
+        status: 'hibernated',
+        hibernatedAt: new Date().toISOString(),
+        snapshotPath: imagePath
+      }
+      ws.updatedAt = new Date().toISOString()
+      await this.workspaceStore.save(ws)
+
+      // 销毁 webContents 释放内存
+      managed.view.webContents.destroy()
+      this.views.delete(profileId)
+
+      this.logger.info('hibernate.success', { profileId })
+      this.notify('webapp.hibernated', { profileId })
+    } catch (err) {
+      this.logger.error('hibernate.failed', { profileId, error: String(err) })
+    }
+  }
+
+  async restoreProfile(profileId: string) {
+    const ws = await this.workspaceStore.load()
+    const state = ws.perProfileState[profileId]
+
+    if (!state || state.status !== 'hibernated') {
+      this.logger.warn('restore.notHibernated', { profileId })
+      return
+    }
+
+    try {
+      // 重新创建 view
+      await this.ensureView(profileId)
+
+      // 恢复到上次的 URL
+      if (state.lastUrl) {
+        const managed = this.views.get(profileId)
+        if (managed) {
+          await managed.view.webContents.loadURL(state.lastUrl)
+        }
+      }
+
+      // 更新状态
+      ws.perProfileState[profileId] = {
+        ...state,
+        status: 'background',
+        hibernatedAt: undefined,
+        snapshotPath: undefined
+      }
+      ws.updatedAt = new Date().toISOString()
+      await this.workspaceStore.save(ws)
+
+      // 删除快照文件
+      if (state.snapshotPath && existsSync(state.snapshotPath)) {
+        unlinkSync(state.snapshotPath)
+      }
+
+      this.logger.info('restore.success', { profileId })
+      this.notify('webapp.restored', { profileId })
+    } catch (err) {
+      this.logger.error('restore.failed', { profileId, error: String(err) })
+    }
+  }
+
+  private startIdleTimer(profileId: string) {
+    // 清除已存在的计时器
+    this.stopIdleTimer(profileId)
+
+    // 启动新的空闲计时器
+    const timer = setTimeout(() => {
+      this.logger.info('idle.timeout', { profileId })
+      void this.hibernateProfile(profileId)
+    }, this.idleTimeoutMs)
+
+    this.idleTimers.set(profileId, timer)
+  }
+
+  private stopIdleTimer(profileId: string) {
+    const timer = this.idleTimers.get(profileId)
+    if (timer) {
+      clearTimeout(timer)
+      this.idleTimers.delete(profileId)
+    }
   }
 
   private async persistWorkspace() {

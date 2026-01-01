@@ -17,8 +17,13 @@ export class WorkspaceStore {
   }
 
   async load(): Promise<Workspace> {
-    const file = (await readJsonFile<Workspace>(this.path)) ?? emptyWorkspace
-    return workspaceSchema.parse(file)
+    try {
+      const file = (await readJsonFile<Workspace>(this.path)) ?? emptyWorkspace
+      return workspaceSchema.parse(file)
+    } catch (err) {
+      console.error('Failed to load workspace, using empty workspace:', err)
+      return emptyWorkspace
+    }
   }
 
   async save(workspace: Workspace) {

@@ -4,7 +4,16 @@ import type { WebAppProfileInput } from '../../../shared/types'
 
 export function registerProfilesHandlers(ipc: IpcMain, ctx: IpcContext) {
   ipc.handle('profiles.list', async (_event, payload: { requestId: string }) => {
-    const profiles = await ctx.profiles.list()
+    const persistedProfiles = await ctx.profiles.list()
+    const tempProfiles = ctx.webapps.getTempProfiles()
+    const profiles = [...persistedProfiles, ...tempProfiles]
+
+    ctx.logger.info('profiles.list', {
+      persistedCount: persistedProfiles.length,
+      tempCount: tempProfiles.length,
+      totalCount: profiles.length
+    })
+
     return { requestId: payload.requestId, result: { profiles } }
   })
 
@@ -20,6 +29,13 @@ export function registerProfilesHandlers(ipc: IpcMain, ctx: IpcContext) {
     async (_event, payload: { requestId: string; profileId: string; patch: Partial<WebAppProfileInput> }) => {
       const profile = await ctx.profiles.update(payload.profileId, payload.patch)
       ctx.logger.info('profiles.update', { profileId: profile.id })
+
+      // 如果是临时应用转为正式应用
+      if (payload.patch.temporary === false) {
+        ctx.webapps.removeTempProfile(payload.profileId)
+        ctx.logger.info('profiles.tempToRegular', { profileId: payload.profileId })
+      }
+
       ctx.webapps.updateProfile(profile)
       ctx.notify('profiles.changed', { type: 'updated', profileId: profile.id })
       return { requestId: payload.requestId, result: { profile } }
@@ -49,6 +65,10 @@ export function registerProfilesHandlers(ipc: IpcMain, ctx: IpcContext) {
 
   ipc.handle('profiles.delete', async (_event, payload: { requestId: string; profileId: string }) => {
     await ctx.profiles.delete(payload.profileId)
+
+    // 关闭对应的应用视图
+    await ctx.webapps.closeProfile(payload.profileId)
+
     ctx.logger.info('profiles.delete', { profileId: payload.profileId })
     ctx.notify('profiles.changed', { type: 'deleted', profileId: payload.profileId })
     return { requestId: payload.requestId, result: { deleted: true } }

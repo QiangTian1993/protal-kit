@@ -8,6 +8,12 @@ export function ensureDataDir() {
   return dir
 }
 
+export function ensureSnapshotsDir() {
+  const dir = join(app.getPath('userData'), 'snapshots')
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 export function profilesPath() {
   return join(ensureDataDir(), 'profiles.json')
 }
@@ -18,4 +24,8 @@ export function workspacePath() {
 
 export function appConfigPath() {
   return join(ensureDataDir(), 'app-config.json')
+}
+
+export function snapshotPath(profileId: string) {
+  return join(ensureSnapshotsDir(), `${profileId}.png`)
 }

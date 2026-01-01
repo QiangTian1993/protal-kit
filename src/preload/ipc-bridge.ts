@@ -14,7 +14,11 @@ const allowedEventChannels = new Set([
   'workspace.activeChanged',
   'webapp.loading',
   'webapp.loaded',
-  'webapp.loadFailed'
+  'webapp.loadFailed',
+  'linkRouter.prompt',
+  'linkRouter.autoMatched',
+  'webapp.hibernated',
+  'webapp.restored'
 ])
 
 function on(channel: string, handler: (payload: any) => void): IpcUnsubscribe {

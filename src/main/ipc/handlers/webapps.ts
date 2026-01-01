@@ -16,5 +16,15 @@ export function registerWebAppsHandlers(ipc: IpcMain, ctx: IpcContext) {
     ctx.webapps.showActiveView()
     return { requestId: payload.requestId, result: { shown: true } }
   })
+
+  ipc.handle('webapps.hibernate', async (_event, payload: { requestId: string; profileId: string }) => {
+    await ctx.webapps.hibernateProfile(payload.profileId)
+    return { requestId: payload.requestId, result: { hibernated: true } }
+  })
+
+  ipc.handle('webapps.restore', async (_event, payload: { requestId: string; profileId: string }) => {
+    await ctx.webapps.restoreProfile(payload.profileId)
+    return { requestId: payload.requestId, result: { restored: true } }
+  })
 }
 
