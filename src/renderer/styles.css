@@ -590,7 +590,7 @@ html[data-theme='dark'] .switcherIndicator {
   padding: 0;
   font-weight: 600;
   font-size: 11px;
-  cursor: pointer;
+  cursor: grab;
   position: relative;
   transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   border: none;
@@ -652,10 +652,14 @@ html[data-theme='dark'] .switcherButton.isActive::after {
 .switcherButton.isDragOver {
   outline: 2px solid var(--accent-color);
   outline-offset: 2px;
+  box-shadow:
+    0 0 0 4px rgba(0, 122, 255, 0.12),
+    0 6px 18px rgba(0, 122, 255, 0.16);
 }
 
 .switcherButton.isDragging {
   opacity: 0.6;
+  cursor: grabbing;
 }
 
 .switcherIcon {
@@ -953,6 +957,11 @@ textarea.input {
 
 .listItem.isDragging {
   opacity: 0.75;
+}
+
+.listItem.isRevealed {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .listItemIcon {
@@ -1380,6 +1389,12 @@ textarea.input {
   border: none;
 }
 
+.commandPaletteItemIcon svg {
+  width: var(--action-icon-size);
+  height: var(--action-icon-size);
+  display: block;
+}
+
 .commandPaletteItem:hover .commandPaletteItemIcon,
 .commandPaletteItem.isSelected .commandPaletteItemIcon {
   transform: scale(1.05);
@@ -1465,6 +1480,17 @@ html[data-theme='dark'] .commandPaletteItem.isActive .commandPaletteItemIcon::af
   letter-spacing: 0.3px;
 }
 
+.commandPaletteItemTag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  letter-spacing: 0.2px;
+}
+
 .commandPaletteFooter {
   padding: 14px 20px;
   border-top: 1px solid var(--border-color);
@@ -1477,6 +1503,73 @@ html[data-theme='dark'] .commandPaletteItem.isActive .commandPaletteItemIcon::af
 
 .commandPaletteFooter .textMuted {
   font-size: 13px;
+}
+
+.contextMenuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+}
+
+.contextMenu {
+  position: fixed;
+  min-width: 180px;
+  padding: 6px;
+  background: var(--modal-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: var(--modal-shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+.contextMenuItem {
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.contextMenuItem:hover:not(:disabled) {
+  background: var(--surface-soft);
+}
+
+.contextMenuItem:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.contextMenuItem.isDanger {
+  color: var(--danger-color);
+}
+
+.contextMenuItemIcon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.contextMenuItemIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.contextMenuItemLabel {
+  flex: 1;
+  min-width: 0;
 }
 
 @keyframes slideDown {
@@ -1497,7 +1590,7 @@ html[data-theme='dark'] .commandPaletteItem.isActive .commandPaletteItemIcon::af
   background: var(--backdrop-bg);
   display: grid;
   place-items: center;
-  z-index: 1000;
+  z-index: 10001;
   animation: fadeIn 0.15s ease;
   backdrop-filter: blur(4px);
 }
@@ -1659,6 +1752,14 @@ body.isSettingsWindow {
 
 .textSecondary {
   color: var(--text-secondary);
+}
+
+.textHighlight {
+  background: rgba(0, 122, 255, 0.18);
+  background: color-mix(in srgb, var(--accent-color) 22%, transparent);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 4px;
 }
 
 .flex {

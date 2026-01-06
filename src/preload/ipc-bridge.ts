@@ -10,6 +10,7 @@ const allowedEventChannels = new Set([
   'ui.settings.drawer',
   'ui.language.changed',
   'ui.immersive.toggle',
+  'ui.library.navigate',
   'profiles.changed',
   'workspace.activeChanged',
   'webapp.loading',

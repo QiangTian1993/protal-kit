@@ -8,10 +8,25 @@ import { closeSettingsWindow } from '../lib/ipc/settings'
 import { IconClose } from '../components/Icons'
 import { getAppConfig, setLanguage } from '../lib/ipc/app-config'
 
+type LibraryNavigatePayload = { mode: 'edit' | 'reveal'; profileId: string }
+
+function isLibraryNavigatePayload(value: unknown): value is LibraryNavigatePayload {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return (
+    (v.mode === 'edit' || v.mode === 'reveal') &&
+    typeof v.profileId === 'string' &&
+    v.profileId.trim().length > 0
+  )
+}
+
 export function SettingsApp() {
   const runtime = useAppRuntime()
   const theme = useThemeMode()
   const [language, setLang] = useState<'system' | 'zh-CN' | 'en-US'>('system')
+  const [libraryNavigate, setLibraryNavigate] = useState<
+    (LibraryNavigatePayload & { nonce: string }) | null
+  >(null)
 
   useEffect(() => {
     document.body.classList.add('isSettingsWindow')
@@ -25,6 +40,14 @@ export function SettingsApp() {
     })()
     const unsub = window.portalKit.on('ui.language.changed', (p: { language: typeof language }) => {
       setLang(p.language)
+    })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    const unsub = window.portalKit.on('ui.library.navigate', (payload: unknown) => {
+      if (!isLibraryNavigatePayload(payload)) return
+      setLibraryNavigate({ ...payload, nonce: crypto.randomUUID() })
     })
     return () => unsub()
   }, [])
@@ -81,6 +104,7 @@ export function SettingsApp() {
         <LibraryView
           profiles={runtime.profiles}
           activeProfileId={runtime.activeProfileId}
+          navigate={libraryNavigate ?? undefined}
           onChanged={() => {
             void runtime.refreshProfiles()
             void runtime.refreshWorkspace()

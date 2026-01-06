@@ -14,7 +14,7 @@ describe('webAppProfileSchema', () => {
       createdAt: now,
       updatedAt: now
     }
-    expect(webAppProfileSchema.parse(profile)).toEqual({ ...profile, pinned: true })
+    expect(webAppProfileSchema.parse(profile)).toEqual({ ...profile, pinned: true, temporary: false })
   })
 
   it('rejects invalid startUrl', () => {

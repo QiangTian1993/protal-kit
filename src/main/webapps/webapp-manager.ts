@@ -25,9 +25,10 @@ export class WebAppManager {
   private views = new Map<string, ManagedView>()
   private tempProfiles = new Map<string, WebAppProfile>() // 内存中的临时应用
   private activeProfileId: string | null = null
+  private activeViewHideCount = 0
   private maxKeptAlive = 10
   private layoutConfig = { sidebarWidth: UI_SIDEBAR_WIDTH, topbarHeight: UI_TOPBAR_HEIGHT, rightInset: 0 }
-  private idleTimers = new Map<string, NodeJS.Timeout>()
+  private idleTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private idleTimeoutMs = 5 * 60 * 1000 // 5分钟空闲后休眠
 
   constructor(args: {
@@ -119,6 +120,7 @@ export class WebAppManager {
   }
 
   hideActiveView() {
+    this.activeViewHideCount += 1
     if (!this.activeProfileId) return
     const managed = this.views.get(this.activeProfileId)
     if (!managed || !this.isAttached(managed.view)) return
@@ -126,13 +128,10 @@ export class WebAppManager {
   }
 
   showActiveView() {
+    this.activeViewHideCount = Math.max(0, this.activeViewHideCount - 1)
+    if (this.activeViewHideCount > 0) return
     if (!this.activeProfileId) return
-    const managed = this.views.get(this.activeProfileId)
-    if (!managed) return
-    if (!this.isAttached(managed.view)) {
-      this.win.addBrowserView(managed.view)
-      this.layoutView(managed.view)
-    }
+    this.attach(this.activeProfileId)
   }
 
   updateProfile(profile: WebAppProfile) {
@@ -268,6 +267,7 @@ export class WebAppManager {
   }
 
   private attach(profileId: string) {
+    if (this.activeViewHideCount > 0) return
     const managed = this.views.get(profileId)
     if (!managed) return
     const existingViews = this.win.getBrowserViews()

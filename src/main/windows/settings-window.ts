@@ -8,8 +8,10 @@ const SETTINGS_DRAWER_WIDTH = 560
 export class SettingsWindowManager {
   private view: BrowserView | null = null
   private drawerOpened = false
+  private drawerReady = false
   private topbarHeight = UI_TOPBAR_HEIGHT
   private onParentResized = () => this.syncBounds()
+  private pendingMessages: Array<{ channel: string; payload: unknown }> = []
 
   constructor(
     private parent: BrowserWindow,
@@ -40,6 +42,21 @@ export class SettingsWindowManager {
     this.syncBounds()
   }
 
+  sendToDrawer(channel: string, payload: unknown) {
+    if (!this.view) return
+    const wc = this.view.webContents
+    if (wc.isDestroyed()) return
+
+    if (this.drawerReady && !wc.isLoading()) {
+      setTimeout(() => {
+        if (!wc.isDestroyed()) wc.send(channel, payload)
+      }, 0)
+      return
+    }
+
+    this.pendingMessages.push({ channel, payload })
+  }
+
   private createView() {
     const preloadPath = join(__dirname, '../preload/ipc-bridge.js')
     const view = new BrowserView({
@@ -59,7 +76,30 @@ export class SettingsWindowManager {
       void view.webContents.loadFile(join(__dirname, '../renderer/index.html'), { hash: '/settings' })
     }
 
+    view.webContents.on('did-start-loading', () => {
+      this.drawerReady = false
+    })
+
+    view.webContents.on('did-finish-load', () => {
+      this.drawerReady = true
+      setTimeout(() => this.flushPendingMessages(), 0)
+    })
+
     return view
+  }
+
+  private flushPendingMessages() {
+    if (!this.view) return
+    const wc = this.view.webContents
+    if (wc.isDestroyed()) return
+    if (!this.drawerReady || wc.isLoading()) return
+    if (this.pendingMessages.length === 0) return
+
+    const pending = this.pendingMessages
+    this.pendingMessages = []
+    for (const msg of pending) {
+      wc.send(msg.channel, msg.payload)
+    }
   }
 
   private syncBounds() {
@@ -112,6 +152,8 @@ export class SettingsWindowManager {
     try {
       if (this.isAttached()) this.parent.removeBrowserView(this.view)
     } finally {
+      this.pendingMessages = []
+      this.drawerReady = false
       this.view.webContents.destroy()
       this.view = null
     }

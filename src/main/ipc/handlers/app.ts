@@ -4,6 +4,17 @@ import type { IpcContext } from '../router'
 import { languageSchema } from '../../../shared/schemas/app-config'
 
 type ThemeMode = 'system' | 'light' | 'dark'
+type LibraryNavigatePayload = { mode: 'edit' | 'reveal'; profileId: string }
+
+function isLibraryNavigatePayload(value: unknown): value is LibraryNavigatePayload {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  return (
+    (v.mode === 'edit' || v.mode === 'reveal') &&
+    typeof v.profileId === 'string' &&
+    v.profileId.trim().length > 0
+  )
+}
 
 export function registerAppHandlers(ipc: IpcMain, ctx: IpcContext) {
   ipc.handle('app.theme.set', async (_event, payload: { requestId: string; mode: ThemeMode }) => {
@@ -36,6 +47,24 @@ export function registerAppHandlers(ipc: IpcMain, ctx: IpcContext) {
     ctx.settingsWindow.close()
     return { requestId: payload.requestId, result: { closed: true } }
   })
+
+  ipc.handle(
+    'app.settings.navigate',
+    async (
+      _event,
+      payload: { requestId: string; target: string; payload: unknown }
+    ) => {
+      if (payload.target !== 'library' || !isLibraryNavigatePayload(payload.payload)) {
+        ctx.logger.warn('app.settings.navigate.invalidPayload', { payload })
+        return { requestId: payload.requestId, result: { navigated: false } }
+      }
+
+      ctx.settingsWindow.open()
+      ;(ctx.settingsWindow as unknown as { sendToDrawer?: (channel: string, payload: unknown) => void })
+        .sendToDrawer?.('ui.library.navigate', payload.payload)
+      return { requestId: payload.requestId, result: { navigated: true } }
+    }
+  )
 
   ipc.handle('app.sidebar.toggle', async (_event, payload: { requestId: string }) => {
     ctx.notify('ui.sidebar.toggle', {})

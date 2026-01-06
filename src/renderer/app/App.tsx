@@ -7,7 +7,7 @@ import { IconSettings, IconGlobe, IconSidebarExpand, IconSidebarCollapse, IconIm
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { LoadingSkeleton, LoadingTimeout } from '../components/LoadingStates'
 import { reloadProfile, restoreProfile } from '../lib/ipc/webapps'
-import { CommandPalette } from '../components/CommandPalette'
+import { CommandPalette, type CommandDescriptor } from '../components/CommandPalette'
 import { HibernatedView } from '../components/HibernatedView'
 
 export function App() {
@@ -30,6 +30,32 @@ export function App() {
   const activeAppName = useMemo(() => {
     return runtime.activeProfile?.name ?? ''
   }, [runtime.activeProfile])
+
+  const commandPaletteCommands = useMemo<CommandDescriptor[]>(() => {
+    return [
+      {
+        id: 'settings.toggle',
+        title: settingsDrawerOpen ? '关闭设置' : '打开设置',
+        keywords: ['settings', 'preferences', '设置', '偏好'],
+        icon: <IconSettings />,
+        run: () => (settingsDrawerOpen ? closeSettingsWindow() : openSettingsWindow())
+      },
+      {
+        id: 'sidebar.toggle',
+        title: sidebarCollapsed ? '展开侧边栏' : '收起侧边栏',
+        keywords: ['sidebar', '侧边栏'],
+        icon: sidebarCollapsed ? <IconSidebarExpand /> : <IconSidebarCollapse />,
+        run: () => setSidebarCollapsed((prev) => !prev)
+      },
+      {
+        id: 'immersive.toggle',
+        title: immersive ? '退出沉浸模式' : '进入沉浸模式',
+        keywords: ['immersive', '沉浸'],
+        icon: immersive ? <IconImmersiveOn width={15} height={15} /> : <IconImmersiveOff width={15} height={15} />,
+        run: () => setImmersive((prev) => !prev)
+      }
+    ]
+  }, [settingsDrawerOpen, sidebarCollapsed, immersive])
 
   const groupOptions = useMemo(() => {
     const map = new Map<string, { name: string; pinnedCount: number }>()
@@ -253,6 +279,7 @@ export function App() {
       profiles={runtime.profiles}
       activeProfileId={runtime.activeProfileId}
       recentProfileIds={[]}
+      commands={commandPaletteCommands}
     />
     </>
   )

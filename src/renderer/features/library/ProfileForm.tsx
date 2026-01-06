@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { ExternalLinksPolicy, WebAppProfileInput } from '../../../shared/types'
 import { Modal } from '../../components/Modal'
 
@@ -10,9 +10,10 @@ interface ProfileFormProps {
   initial: WebAppProfileInput
   existingGroups?: string[]
   onSubmit: (profile: WebAppProfileInput) => void | Promise<void>
+  extraFields?: ReactNode
 }
 
-function ProfileForm({ initial, existingGroups, onSubmit }: ProfileFormProps) {
+function ProfileForm({ initial, existingGroups, onSubmit, extraFields }: ProfileFormProps) {
   const [name, setName] = useState(initial.name)
   const [startUrl, setStartUrl] = useState(initial.startUrl)
   const [allowedOriginsText, setAllowedOriginsText] = useState(initial.allowedOrigins.join('\n'))
@@ -165,6 +166,8 @@ function ProfileForm({ initial, existingGroups, onSubmit }: ProfileFormProps) {
         </label>
       </div>
 
+      {extraFields}
+
       <div className="modalActions">
         <button className="btn btnPrimary" type="submit" disabled={!canSubmit}>
           {submitting ? '保存中...' : '保存'}
@@ -179,6 +182,7 @@ interface ProfileFormModalProps {
   title: string
   initial: WebAppProfileInput
   existingGroups?: string[]
+  extraFields?: ReactNode
   onClose: () => void
   onSubmit: (profile: WebAppProfileInput) => void | Promise<void>
 }
@@ -188,6 +192,7 @@ export function ProfileFormModal({
   title,
   initial,
   existingGroups,
+  extraFields,
   onClose,
   onSubmit
 }: ProfileFormModalProps) {
@@ -198,7 +203,7 @@ export function ProfileFormModal({
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="md">
-      <ProfileForm initial={initial} existingGroups={existingGroups} onSubmit={handleSubmit} />
+      <ProfileForm initial={initial} existingGroups={existingGroups} onSubmit={handleSubmit} extraFields={extraFields} />
     </Modal>
   )
 }

@@ -185,7 +185,15 @@ export function IconGlobe(props: IconProps) {
 
 export function IconSidebarExpand(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <path d="M9 3v18" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M14 12l3 3m0-3l-3-3m3 3H14" />
@@ -195,7 +203,15 @@ export function IconSidebarExpand(props: IconProps) {
 
 export function IconSidebarCollapse(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <path d="M9 3v18" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 12l-3 3m0-3l3-3m-3 3h3" />
@@ -207,7 +223,15 @@ export function IconSidebarCollapse(props: IconProps) {
 export function IconImmersiveOff(props: IconProps) {
   // Window with topbar + sidebar (UI 可见)
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
       <rect x="4" y="5" width="16" height="14" rx="2.5" />
       <path d="M6.5 9.5V18" />
       <path d="M4 8h16" />
@@ -218,9 +242,17 @@ export function IconImmersiveOff(props: IconProps) {
 export function IconImmersiveOn(props: IconProps) {
   // Content-only (沉浸内容)
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
       <rect x="5" y="6" width="14" height="12" rx="2" />
-      <rect x="7" y="8" width="10" height="8" rx="1.2" fill="currentColor" opacity="0.2" />
+      <rect x="7" y="8" width="10" height="8" rx="1.2" opacity="0.6" />
     </svg>
   )
 }

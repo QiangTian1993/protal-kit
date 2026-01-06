@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/007-command-palette-and-switcher-enhancements/requirements.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2026-01-04T12:52:01.929Z",
+      "trigger": "initial",
+      "approvalId": "approval_1767531121913_18l41dt63",
+      "approvalTitle": "审批需求文档：CommandPalette 与 Switcher 交互增强"
+    }
+  ]
+}

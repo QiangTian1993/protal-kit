@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WebAppProfile, WebAppProfileInput } from '../../../shared/types'
 import { batchUpdateProfiles, createProfile, deleteProfile, updateProfile } from '../../lib/ipc/profiles'
 import { switchProfile } from '../../lib/ipc/workspace'
@@ -111,10 +111,12 @@ function toProfileInput(profile: WebAppProfile): WebAppProfileInput {
 }
 
 type LibraryScreen = { type: 'list' } | { type: 'create' } | { type: 'edit'; profileId: string }
+type LibraryNavigateRequest = { mode: 'edit' | 'reveal'; profileId: string; nonce: string }
 
 export function LibraryView(props: {
   profiles: WebAppProfile[]
   activeProfileId: string | null
+  navigate?: LibraryNavigateRequest
   onChanged: () => void
 }) {
   const [screen, setScreen] = useState<LibraryScreen>({ type: 'list' })
@@ -123,6 +125,58 @@ export function LibraryView(props: {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingSection, setDraggingSection] = useState<'pinned' | 'unpinned' | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [revealTarget, setRevealTarget] = useState<{ profileId: string; nonce: string } | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const navigate = props.navigate
+    if (!navigate) return
+
+    setDeleting(null)
+    setDraggingId(null)
+    setDraggingSection(null)
+    setDragOverId(null)
+
+    const exists = props.profiles.some((p) => p.id === navigate.profileId)
+    if (!exists) {
+      setQuery('')
+      setRevealTarget(null)
+      setScreen({ type: 'list' })
+      return
+    }
+
+    if (navigate.mode === 'edit') {
+      setQuery('')
+      setRevealTarget(null)
+      setScreen({ type: 'edit', profileId: navigate.profileId })
+      return
+    }
+
+    setQuery('')
+    setScreen({ type: 'list' })
+    setRevealTarget({ profileId: navigate.profileId, nonce: navigate.nonce })
+  }, [props.navigate, props.profiles])
+
+  useEffect(() => {
+    if (!revealTarget) return
+    if (screen.type !== 'list') return
+
+    const raf = requestAnimationFrame(() => {
+      const el = listRef.current?.querySelector(
+        `[data-profile-id="${revealTarget.profileId}"]`
+      ) as HTMLElement | null
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+
+    const timer = window.setTimeout(() => {
+      setRevealTarget(null)
+    }, 2000)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(timer)
+    }
+  }, [revealTarget, screen.type])
 
   const existingGroups = useMemo(() => {
     const set = new Set<string>()
@@ -323,7 +377,7 @@ export function LibraryView(props: {
 
           <ImportExport onImported={props.onChanged} />
 
-          <div className="flex flexCol gap2" style={{ marginTop: 12 }}>
+          <div className="flex flexCol gap2" style={{ marginTop: 12 }} ref={listRef}>
             {filtered.length === 0 ? (
               <div className="textMuted" style={{ textAlign: 'center', padding: '24px 0' }}>
                 {query ? '未找到匹配的应用' : '暂无应用，点击上方"添加"按钮创建'}
@@ -355,11 +409,13 @@ export function LibraryView(props: {
                         const isDragOver = dragOverId === p.id
                         const isDragging = draggingId === p.id
                         const canDrag = dragEnabled && isPinned
+                        const isRevealed = revealTarget?.profileId === p.id
 
                         return (
                           <div
                             key={p.id}
-                            className={`listItem ${isActive ? 'isActive' : ''} ${isDragOver ? 'isDragOver' : ''} ${isDragging ? 'isDragging' : ''}`}
+                            data-profile-id={p.id}
+                            className={`listItem ${isActive ? 'isActive' : ''} ${isDragOver ? 'isDragOver' : ''} ${isDragging ? 'isDragging' : ''} ${isRevealed ? 'isRevealed' : ''}`}
                             onDragOver={(e) => {
                               if (!canDrag || draggingSection !== 'pinned') return
                               e.preventDefault()
@@ -488,10 +544,12 @@ export function LibraryView(props: {
                         const isDragOver = dragOverId === p.id
                         const isDragging = draggingId === p.id
                         const canDrag = dragEnabled && !isPinned
+                        const isRevealed = revealTarget?.profileId === p.id
                         return (
                           <div
                             key={p.id}
-                            className={`listItem ${isActive ? 'isActive' : ''} ${isDragOver ? 'isDragOver' : ''} ${isDragging ? 'isDragging' : ''}`}
+                            data-profile-id={p.id}
+                            className={`listItem ${isActive ? 'isActive' : ''} ${isDragOver ? 'isDragOver' : ''} ${isDragging ? 'isDragging' : ''} ${isRevealed ? 'isRevealed' : ''}`}
                             onDragOver={(e) => {
                               if (!canDrag || draggingSection !== 'unpinned') return
                               e.preventDefault()
