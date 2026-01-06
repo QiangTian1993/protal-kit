@@ -10,6 +10,7 @@ import { restoreWorkspaceAtStartup } from './app/startup-restore'
 import { profilesPath, workspacePath, appConfigPath } from './storage/paths'
 import { AppConfigStore } from './storage/app-config-store'
 import { LinkRouterService } from './routing/link-router-service'
+import { attachKeyboardShortcuts } from './policy/keyboard-shortcuts'
 
 const logger = createLogger()
 
@@ -24,6 +25,10 @@ if (process.defaultApp) {
 
 app.whenReady().then(async () => {
   const win = createMainWindow()
+  if (process.platform !== 'darwin') {
+    win.setMenuBarVisibility(false)
+  }
+  attachKeyboardShortcuts(win.webContents, (channel, payload) => win.webContents.send(channel, payload))
   const profiles = new ProfileStore(profilesPath())
   const workspace = new WorkspaceStore(workspacePath())
   const appConfig = new AppConfigStore(appConfigPath())

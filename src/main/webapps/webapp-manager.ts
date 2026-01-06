@@ -11,7 +11,9 @@ import { evictLru } from './resource-strategy'
 import { errorPageUrl, loadingPageUrl } from './system-pages'
 import { PerfTracker } from '../observability/perf'
 import type { BrowserView } from 'electron'
+import type { WebContents } from 'electron'
 import { attachNavigationGuards } from '../policy/navigation-hooks'
+import { attachKeyboardShortcuts } from '../policy/keyboard-shortcuts'
 import { snapshotPath } from '../storage/paths'
 import { writeFileSync, unlinkSync, existsSync } from 'node:fs'
 
@@ -119,6 +121,12 @@ export class WebAppManager {
     managed.view.webContents.reload()
   }
 
+  getActiveWebContents(): WebContents | null {
+    if (!this.activeProfileId) return null
+    const managed = this.views.get(this.activeProfileId)
+    return managed?.view.webContents ?? null
+  }
+
   hideActiveView() {
     this.activeViewHideCount += 1
     if (!this.activeProfileId) return
@@ -224,6 +232,8 @@ export class WebAppManager {
 
     const view = createWebAppView(profile)
     this.views.set(profileId, { profile, view, lastActivatedAt: Date.now() })
+
+    attachKeyboardShortcuts(view.webContents, this.notify)
 
     attachNavigationGuards({
       webContents: view.webContents,

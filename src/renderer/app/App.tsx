@@ -9,6 +9,8 @@ import { LoadingSkeleton, LoadingTimeout } from '../components/LoadingStates'
 import { reloadProfile, restoreProfile } from '../lib/ipc/webapps'
 import { CommandPalette, type CommandDescriptor } from '../components/CommandPalette'
 import { HibernatedView } from '../components/HibernatedView'
+import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu'
+import { runMenuAction } from '../lib/ipc/menu'
 
 export function App() {
   const runtime = useAppRuntime()
@@ -18,12 +20,17 @@ export function App() {
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null)
   const [loadingTimeout, setLoadingTimeout] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [topMenu, setTopMenu] = useState<{
+    id: 'app' | 'edit' | 'view'
+    position: { x: number; y: number }
+  } | null>(null)
 
   const TOPBAR_HEIGHT = 38
   const SIDEBAR_WIDTH = 56
   const ALL_GROUP_VALUE = '__portal_kit_all_groups__'
   const LOADING_TIMEOUT_MS = 30000 // 30秒超时
 
+  const isMac = document.documentElement.getAttribute('data-platform') === 'mac'
   const topbarHeight = immersive ? 0 : TOPBAR_HEIGHT
   const sidebarWidth = sidebarCollapsed || immersive ? 0 : SIDEBAR_WIDTH
 
@@ -101,41 +108,103 @@ export function App() {
 
   // Cmd+K 打开搜索面板
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
-      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey
-
-      if (cmdOrCtrl && e.key === 'k') {
-        e.preventDefault()
-        setCommandPaletteOpen(prev => !prev)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [])
-
-  useEffect(() => {
     const unsubToggle = window.portalKit.on('ui.sidebar.toggle', () => {
       setSidebarCollapsed((prev) => !prev)
     })
     const unsubSettings = window.portalKit.on('ui.settings.drawer', (payload: { opened: boolean }) => {
       setSettingsDrawerOpen(payload.opened)
     })
-    const unsubImmersive = window.portalKit.on('ui.immersive.toggle', (payload: { enabled: boolean }) => {
-      setImmersive(Boolean(payload.enabled))
+    const unsubImmersive = window.portalKit.on('ui.immersive.toggle', (payload: { enabled?: boolean } | undefined) => {
+      const enabled = payload?.enabled
+      if (typeof enabled === 'boolean') {
+        setImmersive(enabled)
+        return
+      }
+      setImmersive((prev) => !prev)
+    })
+    const unsubCommandPalette = window.portalKit.on('ui.commandPalette.toggle', () => {
+      setCommandPaletteOpen((prev) => !prev)
+    })
+    const unsubSettingsOpen = window.portalKit.on('ui.settings.open', () => {
+      void openSettingsWindow()
     })
     return () => {
       unsubToggle()
       unsubSettings()
       unsubImmersive()
+      unsubCommandPalette()
+      unsubSettingsOpen()
     }
   }, [])
+
+  useEffect(() => {
+    if (!immersive) return
+    setTopMenu(null)
+  }, [immersive])
 
   const layoutStyle = {
     '--sidebar-width': `${sidebarWidth}px`,
     '--topbar-height': `${topbarHeight}px`
   } as React.CSSProperties
+
+  const topMenuItems = useMemo<ContextMenuItem[]>(() => {
+    if (!topMenu) return []
+
+    const appMenu: ContextMenuItem[] = [
+      {
+        id: 'about',
+        label: '关于 Portal Kit',
+        onSelect: () => runMenuAction('about')
+      },
+      { type: 'separator', id: 'sep.app.1' },
+      {
+        id: 'immersive',
+        label: immersive ? '退出沉浸模式' : '进入沉浸模式',
+        onSelect: () => setImmersive((prev) => !prev)
+      },
+      {
+        id: 'settings',
+        label: '设置…',
+        onSelect: () => openSettingsWindow()
+      },
+      { type: 'separator', id: 'sep.app.2' },
+      {
+        id: 'quit',
+        label: '退出',
+        danger: true,
+        onSelect: () => runMenuAction('quit')
+      }
+    ]
+
+    const editMenu: ContextMenuItem[] = [
+      { id: 'undo', label: '撤销', onSelect: () => runMenuAction('undo') },
+      { id: 'redo', label: '重做', onSelect: () => runMenuAction('redo') },
+      { type: 'separator', id: 'sep.edit.1' },
+      { id: 'cut', label: '剪切', onSelect: () => runMenuAction('cut') },
+      { id: 'copy', label: '复制', onSelect: () => runMenuAction('copy') },
+      { id: 'paste', label: '粘贴', onSelect: () => runMenuAction('paste') },
+      { id: 'pasteAndMatchStyle', label: '粘贴并匹配样式', onSelect: () => runMenuAction('pasteAndMatchStyle') },
+      { type: 'separator', id: 'sep.edit.2' },
+      { id: 'delete', label: '删除', onSelect: () => runMenuAction('delete') },
+      { id: 'selectAll', label: '全选', onSelect: () => runMenuAction('selectAll') }
+    ]
+
+    const viewMenu: ContextMenuItem[] = [
+      { id: 'sidebar.toggle', label: '切换侧边栏', onSelect: () => setSidebarCollapsed((prev) => !prev) },
+      { type: 'separator', id: 'sep.view.1' },
+      { id: 'reload', label: '重新加载', onSelect: () => runMenuAction('reload') },
+      { id: 'toggleDevTools', label: '切换开发者工具', onSelect: () => runMenuAction('toggleDevTools') }
+    ]
+
+    if (topMenu.id === 'app') return appMenu
+    if (topMenu.id === 'edit') return editMenu
+    return viewMenu
+  }, [topMenu, immersive])
+
+  const openTopMenu = (id: 'app' | 'edit' | 'view', el: HTMLElement) => {
+    const rect = el.getBoundingClientRect()
+    setTopMenu({ id, position: { x: Math.round(rect.left), y: Math.round(rect.bottom + 6) } })
+  }
 
   return (
     <>
@@ -144,6 +213,52 @@ export function App() {
       {!immersive && (
       <div className="topbar">
         <div className="topbarLeading">
+          {!isMac && (
+            <div className="topbarMenuBar" role="menubar" aria-label="应用菜单">
+              <button
+                type="button"
+                className="topbarMenuButton"
+                role="menuitem"
+                aria-haspopup="menu"
+                aria-expanded={topMenu?.id === 'app'}
+                onClick={(e) => {
+                  const el = e.currentTarget
+                  if (topMenu?.id === 'app') setTopMenu(null)
+                  else openTopMenu('app', el)
+                }}
+              >
+                Portal Kit
+              </button>
+              <button
+                type="button"
+                className="topbarMenuButton"
+                role="menuitem"
+                aria-haspopup="menu"
+                aria-expanded={topMenu?.id === 'edit'}
+                onClick={(e) => {
+                  const el = e.currentTarget
+                  if (topMenu?.id === 'edit') setTopMenu(null)
+                  else openTopMenu('edit', el)
+                }}
+              >
+                编辑
+              </button>
+              <button
+                type="button"
+                className="topbarMenuButton"
+                role="menuitem"
+                aria-haspopup="menu"
+                aria-expanded={topMenu?.id === 'view'}
+                onClick={(e) => {
+                  const el = e.currentTarget
+                  if (topMenu?.id === 'view') setTopMenu(null)
+                  else openTopMenu('view', el)
+                }}
+              >
+                视图
+              </button>
+            </div>
+          )}
           <select
             className="topbarGroupSelect"
             value={activeGroupKey === null ? ALL_GROUP_VALUE : activeGroupKey}
@@ -280,6 +395,15 @@ export function App() {
       activeProfileId={runtime.activeProfileId}
       recentProfileIds={[]}
       commands={commandPaletteCommands}
+    />
+
+    <ContextMenu
+      open={topMenu !== null && !immersive}
+      position={topMenu?.position ?? { x: 0, y: 0 }}
+      items={topMenuItems}
+      onClose={() => setTopMenu(null)}
+      ariaLabel="应用菜单"
+      hideActiveViewOnOpen={true}
     />
     </>
   )

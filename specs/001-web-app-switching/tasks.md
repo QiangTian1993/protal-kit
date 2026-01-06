@@ -151,6 +151,7 @@ description: "Task list for multi web app switching + state retention"
 - [x] T057 Topbar: move group Select to left side, remove border, avoid mac traffic light overlap; Sidebar: add group dividers. Changes in `src/renderer/app/App.tsx`, `src/renderer/styles.css`, `src/renderer/features/switcher/Switcher.tsx`
 - [x] T058 Adjust navigation pop-up policy to inline allowed-origin child windows and relax gesture checks for SSO redirects in `src/main/policy/navigation-hooks.ts`
 - [x] T059 Packaging: add app icon pipeline and builder config (mac/win/linux) in `package.json`, `scripts/make-icons.sh`, `scripts/generate-icons.mjs`
+- [x] T060 Windows: hide native menu bar, merge menu into topbar, enable titleBarOverlay, and fix shortcuts when BrowserView is focused (`src/main/windows/main-window.ts`, `src/main/policy/keyboard-shortcuts.ts`, `src/main/ipc/handlers/app.ts`, `src/renderer/app/App.tsx`)
 
 ---
 

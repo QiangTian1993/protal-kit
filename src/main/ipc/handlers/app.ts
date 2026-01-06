@@ -1,10 +1,23 @@
 import type { IpcMain } from 'electron'
-import { nativeTheme } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, webContents } from 'electron'
 import type { IpcContext } from '../router'
 import { languageSchema } from '../../../shared/schemas/app-config'
 
 type ThemeMode = 'system' | 'light' | 'dark'
 type LibraryNavigatePayload = { mode: 'edit' | 'reveal'; profileId: string }
+type MenuAction =
+  | 'about'
+  | 'quit'
+  | 'reload'
+  | 'toggleDevTools'
+  | 'undo'
+  | 'redo'
+  | 'cut'
+  | 'copy'
+  | 'paste'
+  | 'pasteAndMatchStyle'
+  | 'delete'
+  | 'selectAll'
 
 function isLibraryNavigatePayload(value: unknown): value is LibraryNavigatePayload {
   if (!value || typeof value !== 'object') return false
@@ -83,6 +96,61 @@ export function registerAppHandlers(ipc: IpcMain, ctx: IpcContext) {
       const next = await ctx.appConfig.patch({ language: lang, schemaVersion: 1 })
       ctx.notify('ui.language.changed', { language: next.language })
       return { requestId: payload.requestId, result: next }
+    }
+  )
+
+  ipc.handle(
+    'app.menu.action',
+    async (_event, payload: { requestId: string; action: MenuAction }) => {
+      const activeWc = ctx.webapps.getActiveWebContents()
+      const focusedWc = webContents.getFocusedWebContents()
+      const target = activeWc ?? focusedWc ?? null
+
+      switch (payload.action) {
+        case 'about': {
+          const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
+          await dialog.showMessageBox(parent ?? undefined, {
+            type: 'info',
+            title: 'Portal Kit',
+            message: 'Portal Kit',
+            detail: `版本：${app.getVersion()}`
+          })
+          return { requestId: payload.requestId, result: { ok: true } }
+        }
+        case 'quit':
+          app.quit()
+          return { requestId: payload.requestId, result: { ok: true } }
+        case 'reload':
+          target?.reload()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'toggleDevTools':
+          target?.toggleDevTools()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'undo':
+          target?.undo()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'redo':
+          target?.redo()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'cut':
+          target?.cut()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'copy':
+          target?.copy()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'paste':
+          target?.paste()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'pasteAndMatchStyle':
+          target?.pasteAndMatchStyle()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'delete':
+          target?.delete()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+        case 'selectAll':
+          target?.selectAll()
+          return { requestId: payload.requestId, result: { ok: Boolean(target) } }
+      }
     }
   )
 }

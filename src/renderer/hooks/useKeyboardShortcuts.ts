@@ -16,57 +16,55 @@ export function useKeyboardShortcuts({
   onNavigatePrev
 }: UseKeyboardShortcutsOptions) {
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
-      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey
+    const unsub = window.portalKit.on(
+      'ui.keyboard.shortcut',
+      (payload: { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }) => {
+        const key = payload.key
+        const isMac = document.documentElement.getAttribute('data-platform') === 'mac'
+        const cmdOrCtrl = isMac ? payload.metaKey : payload.ctrlKey
 
-      // Cmd/Ctrl + 1-9: 切换到第 N 个 Profile
-      if (cmdOrCtrl && !e.shiftKey && !e.altKey) {
-        const num = parseInt(e.key, 10)
-        if (num >= 1 && num <= 9) {
-          e.preventDefault()
-          const targetProfile = profiles[num - 1]
-          if (targetProfile) {
-            void switchProfile(targetProfile.id)
+        // Cmd/Ctrl + 1-9: 切换到第 N 个 Profile
+        if (cmdOrCtrl && !payload.shiftKey && !payload.altKey) {
+          const num = parseInt(key, 10)
+          if (num >= 1 && num <= 9) {
+            const targetProfile = profiles[num - 1]
+            if (targetProfile) {
+              void switchProfile(targetProfile.id)
+            }
+            return
+          }
+        }
+
+        // Cmd/Ctrl + [: 切换到上一个 Profile
+        if (cmdOrCtrl && key === '[' && !payload.shiftKey && !payload.altKey) {
+          if (onNavigatePrev) {
+            onNavigatePrev()
+          } else {
+            navigateToPrevProfile(profiles, activeProfileId)
           }
           return
         }
-      }
 
-      // Cmd/Ctrl + [: 切换到上一个 Profile
-      if (cmdOrCtrl && e.key === '[' && !e.shiftKey && !e.altKey) {
-        e.preventDefault()
-        if (onNavigatePrev) {
-          onNavigatePrev()
-        } else {
-          navigateToPrevProfile(profiles, activeProfileId)
+        // Cmd/Ctrl + ]: 切换到下一个 Profile
+        if (cmdOrCtrl && key === ']' && !payload.shiftKey && !payload.altKey) {
+          if (onNavigateNext) {
+            onNavigateNext()
+          } else {
+            navigateToNextProfile(profiles, activeProfileId)
+          }
+          return
         }
-        return
-      }
 
-      // Cmd/Ctrl + ]: 切换到下一个 Profile
-      if (cmdOrCtrl && e.key === ']' && !e.shiftKey && !e.altKey) {
-        e.preventDefault()
-        if (onNavigateNext) {
-          onNavigateNext()
-        } else {
-          navigateToNextProfile(profiles, activeProfileId)
+        // Cmd/Ctrl + W: 关闭当前 Profile
+        if (cmdOrCtrl && key.toLowerCase() === 'w' && !payload.shiftKey && !payload.altKey) {
+          if (activeProfileId) {
+            void closeProfile(activeProfileId)
+          }
         }
-        return
       }
+    )
 
-      // Cmd/Ctrl + W: 关闭当前 Profile
-      if (cmdOrCtrl && e.key === 'w' && !e.shiftKey && !e.altKey) {
-        e.preventDefault()
-        if (activeProfileId) {
-          void closeProfile(activeProfileId)
-        }
-        return
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    return () => unsub()
   }, [profiles, activeProfileId, onNavigateNext, onNavigatePrev])
 }
 

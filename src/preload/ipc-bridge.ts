@@ -6,7 +6,10 @@ type IpcUnsubscribe = () => void
 const invoke: IpcInvoke = (channel, payload) => ipcRenderer.invoke(channel, payload)
 
 const allowedEventChannels = new Set([
+  'ui.commandPalette.toggle',
+  'ui.keyboard.shortcut',
   'ui.sidebar.toggle',
+  'ui.settings.open',
   'ui.settings.drawer',
   'ui.language.changed',
   'ui.immersive.toggle',

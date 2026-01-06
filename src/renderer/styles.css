@@ -30,6 +30,9 @@
   --sidebar-width: 56px;
   --sidebar-width-collapsed: 0px;
   --topbar-height: 38px;
+  --window-controls-left-inset: 0px;
+  --window-controls-right-inset: 0px;
+  --window-controls-height: 0px;
   --sidebar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(245, 245, 250, 0.46));
   --sidebar-border: rgba(60, 60, 67, 0.1);
   --sidebar-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
@@ -208,6 +211,26 @@ html[data-theme='dark'] {
   --danger-color: #ff453a;
 }
 
+/*
+  Windows/Linux：窗口背景通常是实色（非透明），如果使用半透明的 --app-bg，
+  深色模式会与白底混合成浅灰，导致浅色文字对比度不足，看起来像“文字不显示/发灰”。
+  这里将基础背景改为不透明，既保留玻璃质感（其它 surface 仍可半透明），又保证可读性。
+*/
+html[data-platform='other'] {
+  --app-bg: #f2f2f7;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-platform='other'] {
+    --app-bg: #0d0d0f;
+  }
+}
+html[data-platform='other'][data-theme='light'] {
+  --app-bg: #f2f2f7;
+}
+html[data-platform='other'][data-theme='dark'] {
+  --app-bg: #0d0d0f;
+}
+
 * {
   box-sizing: border-box;
   scrollbar-width: thin;
@@ -239,7 +262,22 @@ body,
 #root {
   height: 100%;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Display',
+    'SF Pro Text',
+    'Segoe UI',
+    'Microsoft YaHei UI',
+    'Microsoft YaHei',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Noto Sans CJK SC',
+    'Noto Sans SC',
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -249,6 +287,10 @@ body {
   background: var(--app-bg);
   font-size: 13px;
   line-height: 1.5;
+}
+
+html[data-platform='other'] body {
+  font-size: 14px;
 }
 
 /* Layout */
@@ -305,7 +347,7 @@ body {
   width: 200px;
   display: flex;
   align-items: center;
-  padding-left: 12px;
+  padding-left: calc(12px + var(--window-controls-left-inset));
   gap: 8px;
   -webkit-app-region: no-drag;
 }
@@ -314,12 +356,52 @@ html[data-platform='mac'] .topbarLeading {
   padding-left: 88px;
 }
 
+html[data-platform='other'] .topbarLeading {
+  width: 360px;
+}
+
+.topbarMenuBar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.topbarMenuButton {
+  appearance: none;
+  border: none;
+  background: transparent;
+  height: var(--action-btn-size);
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.topbarMenuButton:hover {
+  background: var(--handle-bg-hover);
+  color: var(--text-primary);
+}
+
+.topbarMenuButton[aria-expanded='true'] {
+  background: var(--surface-soft);
+  color: var(--text-primary);
+}
+
 .topbarCenter {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   /* 预留更宽的左右操作区，避免与左侧分组选择和右侧按钮重叠 */
   max-width: calc(100% - 520px);
+}
+html[data-platform='other'] .topbarCenter {
+  max-width: calc(100% - 720px - var(--window-controls-right-inset));
 }
 
 .topbarTitle {
@@ -345,11 +427,11 @@ html[data-platform='mac'] .topbarLeading {
   right: 0;
   top: 0;
   bottom: 0;
-  width: 260px;
+  width: calc(260px + var(--window-controls-right-inset));
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 16px;
+  padding-right: calc(16px + var(--window-controls-right-inset));
   gap: 8px;
   -webkit-app-region: no-drag;
 }
@@ -1009,7 +1091,16 @@ textarea.input {
 .listItemUrl {
   font-size: 11px;
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    'Cascadia Mono',
+    'Microsoft YaHei UI',
+    'Microsoft YaHei',
+    monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1572,6 +1663,12 @@ html[data-theme='dark'] .commandPaletteItem.isActive .commandPaletteItemIcon::af
   min-width: 0;
 }
 
+.contextMenuSeparator {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--border-color);
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;
@@ -1740,7 +1837,16 @@ body.isSettingsWindow {
 
 /* Utility */
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    'Cascadia Mono',
+    'Microsoft YaHei UI',
+    'Microsoft YaHei',
+    monospace;
   font-size: 12px;
   color: var(--text-muted);
   word-break: break-all;

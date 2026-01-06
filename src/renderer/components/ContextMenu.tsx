@@ -3,14 +3,20 @@ import { hideActiveView, showActiveView } from '../lib/ipc/webapps'
 
 export type ContextMenuPosition = { x: number; y: number }
 
-export type ContextMenuItem = {
-  id: string
-  label: string
-  icon?: React.ReactNode
-  disabled?: boolean
-  danger?: boolean
-  onSelect: () => void | Promise<void>
-}
+export type ContextMenuItem =
+  | {
+      type?: 'item'
+      id: string
+      label: string
+      icon?: React.ReactNode
+      disabled?: boolean
+      danger?: boolean
+      onSelect: () => void | Promise<void>
+    }
+  | {
+      type: 'separator'
+      id: string
+    }
 
 interface ContextMenuProps {
   open: boolean
@@ -99,24 +105,30 @@ export function ContextMenu({
         onMouseDown={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`contextMenuItem ${item.danger ? 'isDanger' : ''}`}
-            disabled={item.disabled}
-            role="menuitem"
-            onClick={() => {
-              onClose()
-              void Promise.resolve()
-                .then(item.onSelect)
-                .catch(() => {})
-            }}
-          >
-            {item.icon && <span className="contextMenuItemIcon">{item.icon}</span>}
-            <span className="contextMenuItemLabel">{item.label}</span>
-          </button>
-        ))}
+        {items.map((item) => {
+          if (item.type === 'separator') {
+            return <div key={item.id} className="contextMenuSeparator" role="separator" />
+          }
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`contextMenuItem ${item.danger ? 'isDanger' : ''}`}
+              disabled={item.disabled}
+              role="menuitem"
+              onClick={() => {
+                onClose()
+                void Promise.resolve()
+                  .then(item.onSelect)
+                  .catch(() => {})
+              }}
+            >
+              {item.icon && <span className="contextMenuItemIcon">{item.icon}</span>}
+              <span className="contextMenuItemLabel">{item.label}</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
