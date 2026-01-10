@@ -3,9 +3,8 @@ import type { WebAppProfile } from '../../../shared/types'
 import { batchUpdateProfiles, updateProfile } from '../../lib/ipc/profiles'
 import { navigateSettingsToLibrary } from '../../lib/ipc/settings'
 import { switchProfile } from '../../lib/ipc/workspace'
-import { ContextMenu, type ContextMenuItem } from '../../components/ContextMenu'
+import { popupContextMenu, type ContextMenuPopupItem } from '../../lib/ipc/context-menu'
 import { computePinnedReorderItems, normalizeProfileGroup, sortPinnedProfiles } from '../../utils/profileReorder'
-import { IconPencil, IconPinOff, IconSearch } from '../../components/Icons'
 
 function getInitials(name: string): string {
   const trimmed = name.trim()
@@ -148,40 +147,6 @@ export function Switcher({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [indicatorTop, setIndicatorTop] = useState<number | null>(null)
-  const [contextMenu, setContextMenu] = useState<{
-    profileId: string
-    position: { x: number; y: number }
-  } | null>(null)
-
-  const contextMenuProfile = useMemo(() => {
-    if (!contextMenu) return null
-    return pinned.find((p) => p.id === contextMenu.profileId) ?? null
-  }, [contextMenu, pinned])
-
-  const contextMenuItems = useMemo<ContextMenuItem[]>(() => {
-    if (!contextMenuProfile) return []
-
-    return [
-      {
-        id: 'edit',
-        label: '编辑',
-        icon: <IconPencil />,
-        onSelect: () => navigateSettingsToLibrary({ mode: 'edit', profileId: contextMenuProfile.id })
-      },
-      {
-        id: 'revealInLibrary',
-        label: '在库中显示',
-        icon: <IconSearch />,
-        onSelect: () => navigateSettingsToLibrary({ mode: 'reveal', profileId: contextMenuProfile.id })
-      },
-      {
-        id: 'togglePinned',
-        label: '取消固定',
-        icon: <IconPinOff />,
-        onSelect: () => updateProfile(contextMenuProfile.id, { pinned: false })
-      }
-    ]
-  }, [contextMenuProfile])
 
   useLayoutEffect(() => {
     if (!activeProfileId || !switcherRef.current) {
@@ -256,18 +221,39 @@ export function Switcher({
                     e.stopPropagation()
                     if (draggingId) return
                     ignoreClickUntil.current = Date.now() + 250
-                    setContextMenu({ profileId: p.id, position: { x: e.clientX, y: e.clientY } })
+
+                    const menuItems: ContextMenuPopupItem[] = [
+                      { id: 'edit', label: '编辑' },
+                      { id: 'revealInLibrary', label: '在库中显示' },
+                      { type: 'separator', id: 'sep.1' },
+                      { id: 'togglePinned', label: '取消固定' }
+                    ]
+
+                    const actions: Record<string, () => void | Promise<void>> = {
+                      edit: () => navigateSettingsToLibrary({ mode: 'edit', profileId: p.id }),
+                      revealInLibrary: () => navigateSettingsToLibrary({ mode: 'reveal', profileId: p.id }),
+                      togglePinned: () => updateProfile(p.id, { pinned: false })
+                    }
+
+                    void popupContextMenu({ position: { x: e.clientX, y: e.clientY }, items: menuItems }).then(
+                      (itemId) => {
+                        if (!itemId) return
+                        const action = actions[itemId]
+                        if (!action) return
+                        void Promise.resolve()
+                          .then(action)
+                          .catch(() => {})
+                      }
+                    )
                   }}
                 onDragStart={(e) => {
                   setDraggingId(p.id)
-                  setContextMenu(null)
                   e.dataTransfer.effectAllowed = 'move'
                   e.dataTransfer.setData('text/plain', p.id)
                 }}
                 onDragEnd={() => {
                   setDraggingId(null)
                   setDragOverId(null)
-                  setContextMenu(null)
                 }}
                 onDragOver={(e) => {
                   e.preventDefault()
@@ -286,7 +272,6 @@ export function Switcher({
                 onClick={() => {
                   if (Date.now() < ignoreClickUntil.current) return
                   if (draggingId) return
-                  if (contextMenu) return
                   switchProfile(p.id)
                 }}
                 title={groupName ? `${p.name} · ${displayGroupName(groupName)} · 拖拽排序` : `${p.name} · 拖拽排序`}
@@ -301,15 +286,6 @@ export function Switcher({
           </React.Fragment>
         ))}
       </div>
-
-      <ContextMenu
-        open={contextMenuProfile !== null && contextMenu !== null}
-        position={contextMenu?.position ?? { x: 0, y: 0 }}
-        items={contextMenuItems}
-        onClose={() => setContextMenu(null)}
-        hideActiveViewOnOpen
-        ariaLabel={contextMenuProfile ? `应用操作：${contextMenuProfile.name}` : '应用操作'}
-      />
     </div>
   )
 }

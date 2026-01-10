@@ -10,10 +10,16 @@ export const routingRuleSchema = z.object({
   createdAt: z.string().datetime()
 })
 
+const windowConfigSchema = z.object({
+  initialWidth: z.number().int().min(800).optional(),
+  initialHeight: z.number().int().min(600).optional()
+})
+
 export const appConfigSchema = z.object({
   schemaVersion: z.literal(1),
   language: languageSchema,
-  routingRules: z.array(routingRuleSchema).optional().default([])
+  routingRules: z.array(routingRuleSchema).optional().default([]),
+  window: windowConfigSchema.optional()
 })
 
 export type AppConfig = z.infer<typeof appConfigSchema>
@@ -24,4 +30,3 @@ export const defaultAppConfig: AppConfig = {
   language: 'system',
   routingRules: []
 }
-

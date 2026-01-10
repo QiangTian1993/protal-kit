@@ -1,7 +1,8 @@
 import type { IpcMain } from 'electron'
-import { app, BrowserWindow, dialog, nativeTheme, webContents } from 'electron'
+import { app, BrowserWindow, dialog, Menu, nativeTheme, webContents } from 'electron'
 import type { IpcContext } from '../router'
 import { languageSchema } from '../../../shared/schemas/app-config'
+import { z } from 'zod'
 
 type ThemeMode = 'system' | 'light' | 'dark'
 type LibraryNavigatePayload = { mode: 'edit' | 'reveal'; profileId: string }
@@ -28,6 +29,28 @@ function isLibraryNavigatePayload(value: unknown): value is LibraryNavigatePaylo
     v.profileId.trim().length > 0
   )
 }
+
+const windowInitialSizeSchema = z.object({
+  initialWidth: z.number().int().min(800).nullable().optional(),
+  initialHeight: z.number().int().min(600).nullable().optional()
+})
+
+const contextMenuItemSchema = z.union([
+  z.object({ type: z.literal('separator'), id: z.string().min(1) }),
+  z.object({
+    type: z.literal('item').optional(),
+    id: z.string().min(1),
+    label: z.string().min(1),
+    disabled: z.boolean().optional(),
+    danger: z.boolean().optional()
+  })
+])
+
+const contextMenuPopupSchema = z.object({
+  menuRequestId: z.string().min(1),
+  position: z.object({ x: z.number().finite(), y: z.number().finite() }),
+  items: z.array(contextMenuItemSchema).min(1)
+})
 
 export function registerAppHandlers(ipc: IpcMain, ctx: IpcContext) {
   ipc.handle('app.theme.set', async (_event, payload: { requestId: string; mode: ThemeMode }) => {
@@ -100,6 +123,23 @@ export function registerAppHandlers(ipc: IpcMain, ctx: IpcContext) {
   )
 
   ipc.handle(
+    'app.config.setWindowInitialSize',
+    async (_event, payload: { requestId: string; window: unknown }) => {
+      const windowConfig = windowInitialSizeSchema.parse(payload.window)
+      const nextWindow =
+        windowConfig.initialWidth == null && windowConfig.initialHeight == null
+          ? undefined
+          : {
+              initialWidth: windowConfig.initialWidth ?? undefined,
+              initialHeight: windowConfig.initialHeight ?? undefined
+            }
+
+      const next = await ctx.appConfig.patch({ window: nextWindow, schemaVersion: 1 })
+      return { requestId: payload.requestId, result: next }
+    }
+  )
+
+  ipc.handle(
     'app.menu.action',
     async (_event, payload: { requestId: string; action: MenuAction }) => {
       const activeWc = ctx.webapps.getActiveWebContents()
@@ -151,6 +191,44 @@ export function registerAppHandlers(ipc: IpcMain, ctx: IpcContext) {
           target?.selectAll()
           return { requestId: payload.requestId, result: { ok: Boolean(target) } }
       }
+    }
+  )
+
+  ipc.handle(
+    'app.contextMenu.popup',
+    async (event, payload: { requestId: string; menuRequestId: string; position: unknown; items: unknown }) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) return { requestId: payload.requestId, result: { shown: false } }
+
+      const parsed = contextMenuPopupSchema.parse({
+        menuRequestId: payload.menuRequestId,
+        position: payload.position,
+        items: payload.items
+      })
+
+      const menu = Menu.buildFromTemplate(
+        parsed.items.map((item) => {
+          if (item.type === 'separator') return { type: 'separator' as const }
+          return {
+            label: item.label,
+            enabled: !(item.disabled ?? false),
+            click: () => {
+              event.sender.send('ui.contextMenu.select', { menuRequestId: parsed.menuRequestId, itemId: item.id })
+            }
+          }
+        })
+      )
+
+      menu.popup({
+        window: win,
+        x: Math.round(parsed.position.x),
+        y: Math.round(parsed.position.y),
+        callback: () => {
+          event.sender.send('ui.contextMenu.closed', { menuRequestId: parsed.menuRequestId })
+        }
+      })
+
+      return { requestId: payload.requestId, result: { shown: true } }
     }
   )
 }

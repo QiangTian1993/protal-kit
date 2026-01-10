@@ -24,14 +24,20 @@ if (process.defaultApp) {
 }
 
 app.whenReady().then(async () => {
-  const win = createMainWindow()
+  const appConfig = new AppConfigStore(appConfigPath())
+  const config = await appConfig.load().catch(() => null)
+  const win = createMainWindow({
+    initialSize: {
+      width: config?.window?.initialWidth,
+      height: config?.window?.initialHeight
+    }
+  })
   if (process.platform !== 'darwin') {
     win.setMenuBarVisibility(false)
   }
   attachKeyboardShortcuts(win.webContents, (channel, payload) => win.webContents.send(channel, payload))
   const profiles = new ProfileStore(profilesPath())
   const workspace = new WorkspaceStore(workspacePath())
-  const appConfig = new AppConfigStore(appConfigPath())
   const linkRouter = new LinkRouterService({ configStore: appConfig, profileStore: profiles, logger })
   await linkRouter.init()
 

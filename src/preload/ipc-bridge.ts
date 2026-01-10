@@ -8,6 +8,8 @@ const invoke: IpcInvoke = (channel, payload) => ipcRenderer.invoke(channel, payl
 const allowedEventChannels = new Set([
   'ui.commandPalette.toggle',
   'ui.keyboard.shortcut',
+  'ui.contextMenu.select',
+  'ui.contextMenu.closed',
   'ui.sidebar.toggle',
   'ui.settings.open',
   'ui.settings.drawer',

@@ -25,4 +25,9 @@ test-results/
 # Claude Code artifacts
 .claude/
 
+.spec-workflow/approvals/
+.spec-workflow/dashboard.pid
+.spec-workflow/dashboard.log
+.spec-workflow/archive/
+
 specs/
