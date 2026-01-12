@@ -38,6 +38,19 @@ export function attachKeyboardShortcuts(webContents: WebContents, notify: Notify
       return
     }
 
+    // Reload shortcut (supports Shift for hard reload)
+    if (key === 'r') {
+      event.preventDefault()
+      notify('ui.keyboard.shortcut', {
+        key: input.key,
+        altKey: Boolean(input.alt),
+        ctrlKey: Boolean(input.control),
+        metaKey: Boolean(input.meta),
+        shiftKey: Boolean(input.shift)
+      })
+      return
+    }
+
     // Profile navigation shortcuts: forward to renderer (reuse existing logic)
     if (!input.shift) {
       const isDigit = key.length === 1 && key >= '1' && key <= '9'

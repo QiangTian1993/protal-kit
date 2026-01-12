@@ -2,9 +2,22 @@ import type { IpcMain } from 'electron'
 import type { IpcContext } from '../router'
 
 export function registerWebAppsHandlers(ipc: IpcMain, ctx: IpcContext) {
-  ipc.handle('webapps.reload', async (_event, payload: { requestId: string; profileId: string }) => {
-    await ctx.webapps.reloadProfile(payload.profileId)
-    return { requestId: payload.requestId, result: { reloaded: true } }
+  ipc.handle(
+    'webapps.reload',
+    async (_event, payload: { requestId: string; profileId: string; ignoreCache?: boolean }) => {
+      await ctx.webapps.reloadProfile(payload.profileId, { ignoreCache: payload.ignoreCache })
+      return { requestId: payload.requestId, result: { reloaded: true } }
+    }
+  )
+
+  ipc.handle('webapps.goBack', async (_event, payload: { requestId: string; profileId: string }) => {
+    await ctx.webapps.goBack(payload.profileId)
+    return { requestId: payload.requestId, result: { navigated: true } }
+  })
+
+  ipc.handle('webapps.goForward', async (_event, payload: { requestId: string; profileId: string }) => {
+    await ctx.webapps.goForward(payload.profileId)
+    return { requestId: payload.requestId, result: { navigated: true } }
   })
 
   ipc.handle('webapps.hideActiveView', async (_event, payload: { requestId: string }) => {

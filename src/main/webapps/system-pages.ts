@@ -50,7 +50,8 @@ export function errorPageUrl(args: { title: string; message: string; url?: strin
       .title { font-weight: 700; }
       .sub { color: rgba(60,60,67,.7); font-size: 13px; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: rgba(60,60,67,.7); word-break: break-all; }
-      .btn { display: inline-block; border-radius: 10px; border: 1px solid rgba(60,60,67,.18); padding: 8px 10px; background: rgba(255,255,255,.9); text-decoration: none; color: inherit; }
+      .btn { display: inline-block; border-radius: 10px; border: 1px solid rgba(60,60,67,.18); padding: 8px 10px; background: rgba(255,255,255,.9); text-decoration: none; color: inherit; cursor: pointer; }
+      .btn:disabled { opacity: .4; cursor: default; }
       .btnRow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
     </style>
   </head>
@@ -62,10 +63,24 @@ export function errorPageUrl(args: { title: string; message: string; url?: strin
         <div class="mono">${escapeHtml(args.message)}</div>
         ${args.url ? `<div class="mono">${escapeHtml(args.url)}</div>` : ''}
         <div class="btnRow">
-          <a class="btn" href="${args.url ? escapeAttr(args.url) : '#'}">重试</a>
+          <button class="btn" type="button" data-error-retry ${args.url ? `data-url="${escapeAttr(args.url)}"` : ''}>重试</button>
         </div>
       </div>
     </div>
+    <script>
+      (function () {
+        const btn = document.querySelector('[data-error-retry]');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+          const url = btn.getAttribute('data-url');
+          if (url && url !== '#') {
+            window.location.href = url;
+          } else {
+            window.location.reload();
+          }
+        });
+      })();
+    </script>
   </body>
 </html>`)
 }

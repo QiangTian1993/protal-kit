@@ -7,13 +7,16 @@ export type WebAppLoadState =
   | { state: 'idle' }
   | { state: 'loading'; profileId: string }
   | { state: 'loaded'; profileId: string }
-  | { state: 'failed'; profileId: string; message: string }
+  | { state: 'failed'; profileId: string; message: string; url?: string }
 
 export function useAppRuntime() {
   const [profiles, setProfiles] = useState<WebAppProfile[]>([])
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
   const [loadState, setLoadState] = useState<WebAppLoadState>({ state: 'idle' })
+  const [navigationState, setNavigationState] = useState<
+    Record<string, { canGoBack: boolean; canGoForward: boolean }>
+  >({})
 
   async function refreshProfiles() {
     const next = await listProfiles()
@@ -46,8 +49,17 @@ export function useAppRuntime() {
     })
     const unsubFailed = window.portalKit.on(
       'webapp.loadFailed',
-      (p: { profileId: string; message: string }) => {
-        setLoadState({ state: 'failed', profileId: p.profileId, message: p.message })
+      (p: { profileId: string; message: string; url?: string }) => {
+        setLoadState({ state: 'failed', profileId: p.profileId, message: p.message, url: p.url })
+      }
+    )
+    const unsubNav = window.portalKit.on(
+      'webapp.navigationState',
+      (p: { profileId: string; canGoBack: boolean; canGoForward: boolean }) => {
+        setNavigationState((prev) => ({
+          ...prev,
+          [p.profileId]: { canGoBack: p.canGoBack, canGoForward: p.canGoForward }
+        }))
       }
     )
     return () => {
@@ -56,6 +68,7 @@ export function useAppRuntime() {
       unsubLoading()
       unsubLoaded()
       unsubFailed()
+      unsubNav()
     }
   }, [])
 
@@ -70,6 +83,7 @@ export function useAppRuntime() {
     activeProfileId,
     activeProfile,
     loadState,
+    navigationState,
     refreshProfiles,
     refreshWorkspace
   }

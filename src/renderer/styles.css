@@ -485,9 +485,21 @@ html[data-platform='other'] .topbarCenter {
   transform: scale(0.95);
 }
 
+.topbarAction:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
 .topbarAction svg {
   width: var(--action-icon-size);
   height: var(--action-icon-size);
+}
+
+.topbarNav {
+  display: inline-flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
 }
 
 /* Sidebar */
@@ -588,6 +600,14 @@ html[data-platform='other'] .topbarCenter {
   color: var(--text-muted);
   text-align: center;
   font-size: 14px;
+}
+
+.hintActions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .hintIcon {

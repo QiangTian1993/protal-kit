@@ -21,6 +21,7 @@ const allowedEventChannels = new Set([
   'webapp.loading',
   'webapp.loaded',
   'webapp.loadFailed',
+  'webapp.navigationState',
   'linkRouter.prompt',
   'linkRouter.autoMatched',
   'webapp.hibernated',

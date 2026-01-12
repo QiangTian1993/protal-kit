@@ -113,12 +113,39 @@ export class WebAppManager {
     await this.persistWorkspace()
   }
 
-  async reloadProfile(profileId: string) {
+  async reloadProfile(profileId: string, opts?: { ignoreCache?: boolean }) {
     await this.ensureView(profileId)
     const managed = this.views.get(profileId)
     if (!managed) return
-    this.logger.info('webapps.reload', { profileId })
+    this.logger.info('webapps.reload', { profileId, ignoreCache: opts?.ignoreCache })
+
+    if (managed.showingErrorPage && managed.lastFailedUrl) {
+      void managed.view.webContents.loadURL(managed.lastFailedUrl)
+      return
+    }
+
+    if (opts?.ignoreCache) {
+      managed.view.webContents.reloadIgnoringCache()
+      return
+    }
+
     managed.view.webContents.reload()
+  }
+
+  async goBack(profileId: string) {
+    await this.ensureView(profileId)
+    const managed = this.views.get(profileId)
+    if (!managed || !managed.view.webContents.canGoBack()) return
+    this.logger.info('webapps.goBack', { profileId })
+    managed.view.webContents.goBack()
+  }
+
+  async goForward(profileId: string) {
+    await this.ensureView(profileId)
+    const managed = this.views.get(profileId)
+    if (!managed || !managed.view.webContents.canGoForward()) return
+    this.logger.info('webapps.goForward', { profileId })
+    managed.view.webContents.goForward()
   }
 
   getActiveWebContents(): WebContents | null {
@@ -231,7 +258,7 @@ export class WebAppManager {
     if (!profile) throw new Error(`profile_not_found:${profileId}`)
 
     const view = createWebAppView(profile)
-    this.views.set(profileId, { profile, view, lastActivatedAt: Date.now() })
+    this.views.set(profileId, { profile, view, lastActivatedAt: Date.now(), showingErrorPage: false })
 
     attachKeyboardShortcuts(view.webContents, this.notify)
 
@@ -254,17 +281,28 @@ export class WebAppManager {
       this.notify('webapp.loaded', { profileId })
       if (this.activeProfileId === profileId) this.perf.markSwitchInteractive(this.logger, profileId)
     })
+    view.webContents.on('did-start-navigation', (_event, url, _isInPlace, isMainFrame) => {
+      if (!isMainFrame) return
+      if (url.startsWith('data:text/html')) return
+      this.resetFailureState(profileId)
+    })
     view.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL, isMainFrame) => {
       if (!isMainFrame) return
       const message = `${errorCode}: ${errorDescription}`
-      this.notify('webapp.loadFailed', { profileId, message })
+      this.notify('webapp.loadFailed', { profileId, message, url: validatedURL })
       this.logger.warn('webapp.loadFailed', { profileId, message, url: validatedURL })
       if (validatedURL.startsWith('data:text/html')) return
+      const managed = this.views.get(profileId)
+      if (managed) {
+        managed.lastFailedUrl = validatedURL
+        managed.showingErrorPage = true
+      }
       void view.webContents.loadURL(errorPageUrl({ title: profile.name, message, url: validatedURL }))
     })
 
-    view.webContents.on('did-navigate-in-page', (_e, url) => this.onUrl(profileId, url))
-    view.webContents.on('did-navigate', (_e, url) => this.onUrl(profileId, url))
+    const handleNavigationCommitted = (url: string) => this.onNavigationCommitted(profileId, url)
+    view.webContents.on('did-navigate-in-page', (_e, url) => handleNavigationCommitted(url))
+    view.webContents.on('did-navigate', (_e, url) => handleNavigationCommitted(url))
 
     const evicted = evictLru({ views: this.views, max: this.maxKeptAlive, activeProfileId: this.activeProfileId })
     for (const id of evicted) {
@@ -326,6 +364,29 @@ export class WebAppManager {
     }
     ws.updatedAt = new Date().toISOString()
     await this.workspaceStore.save(ws)
+  }
+
+  private onNavigationCommitted(profileId: string, url: string) {
+    this.resetFailureState(profileId)
+    void this.onUrl(profileId, url)
+    this.broadcastNavigationState(profileId)
+  }
+
+  private resetFailureState(profileId: string) {
+    const managed = this.views.get(profileId)
+    if (!managed) return
+    managed.lastFailedUrl = undefined
+    managed.showingErrorPage = false
+  }
+
+  private broadcastNavigationState(profileId: string) {
+    const managed = this.views.get(profileId)
+    if (!managed) return
+    this.notify('webapp.navigationState', {
+      profileId,
+      canGoBack: managed.view.webContents.canGoBack(),
+      canGoForward: managed.view.webContents.canGoForward()
+    })
   }
 
   async hibernateProfile(profileId: string) {

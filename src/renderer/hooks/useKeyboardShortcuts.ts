@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { WebAppProfile } from '../../shared/types'
 import { switchProfile, closeProfile } from '../lib/ipc/workspace'
+import { reloadProfile } from '../lib/ipc/webapps'
 
 interface UseKeyboardShortcutsOptions {
   profiles: WebAppProfile[]
@@ -59,6 +60,14 @@ export function useKeyboardShortcuts({
         if (cmdOrCtrl && key.toLowerCase() === 'w' && !payload.shiftKey && !payload.altKey) {
           if (activeProfileId) {
             void closeProfile(activeProfileId)
+          }
+          return
+        }
+
+        // Cmd/Ctrl + R: 刷新当前 Profile (Shift 强制刷新)
+        if (cmdOrCtrl && key.toLowerCase() === 'r') {
+          if (activeProfileId) {
+            void reloadProfile(activeProfileId, { ignoreCache: payload.shiftKey })
           }
         }
       }

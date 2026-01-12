@@ -1,7 +1,15 @@
 import { invoke } from './request'
 
-export async function reloadProfile(profileId: string) {
-  await invoke('webapps.reload', { profileId })
+export async function reloadProfile(profileId: string, options?: { ignoreCache?: boolean }) {
+  await invoke('webapps.reload', { profileId, ignoreCache: options?.ignoreCache ?? false })
+}
+
+export async function goBack(profileId: string) {
+  await invoke('webapps.goBack', { profileId })
+}
+
+export async function goForward(profileId: string) {
+  await invoke('webapps.goForward', { profileId })
 }
 
 export async function hideActiveView() {

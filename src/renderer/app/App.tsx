@@ -3,10 +3,20 @@ import { Switcher } from '../features/switcher/Switcher'
 import { useAppRuntime } from './useAppRuntime'
 import { setLayoutSize } from '../lib/ipc/layout'
 import { closeSettingsWindow, openSettingsWindow } from '../lib/ipc/settings'
-import { IconSettings, IconGlobe, IconSidebarExpand, IconSidebarCollapse, IconImmersiveOn, IconImmersiveOff } from '../components/Icons'
+import {
+  IconSettings,
+  IconGlobe,
+  IconSidebarExpand,
+  IconSidebarCollapse,
+  IconImmersiveOn,
+  IconImmersiveOff,
+  IconChevronLeft,
+  IconChevronRight,
+  IconRefresh
+} from '../components/Icons'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { LoadingSkeleton, LoadingTimeout } from '../components/LoadingStates'
-import { reloadProfile, restoreProfile } from '../lib/ipc/webapps'
+import { reloadProfile, restoreProfile, goBack, goForward } from '../lib/ipc/webapps'
 import { CommandPalette, type CommandDescriptor } from '../components/CommandPalette'
 import { HibernatedView } from '../components/HibernatedView'
 import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu'
@@ -33,6 +43,10 @@ export function App() {
   const isMac = document.documentElement.getAttribute('data-platform') === 'mac'
   const topbarHeight = immersive ? 0 : TOPBAR_HEIGHT
   const sidebarWidth = sidebarCollapsed || immersive ? 0 : SIDEBAR_WIDTH
+
+  const activeNavigationState = runtime.activeProfileId ? runtime.navigationState[runtime.activeProfileId] : undefined
+  const canGoBack = Boolean(activeNavigationState?.canGoBack)
+  const canGoForward = Boolean(activeNavigationState?.canGoForward)
 
   const activeAppName = useMemo(() => {
     return runtime.activeProfile?.name ?? ''
@@ -149,6 +163,7 @@ export function App() {
 
   const topMenuItems = useMemo<ContextMenuItem[]>(() => {
     if (!topMenu) return []
+    const activeId = runtime.activeProfileId
 
     const appMenu: ContextMenuItem[] = [
       {
@@ -190,16 +205,43 @@ export function App() {
     ]
 
     const viewMenu: ContextMenuItem[] = [
+      {
+        id: 'back',
+        label: '后退',
+        disabled: !canGoBack || !activeId,
+        onSelect: () => {
+          if (activeId) void goBack(activeId)
+        }
+      },
+      {
+        id: 'forward',
+        label: '前进',
+        disabled: !canGoForward || !activeId,
+        onSelect: () => {
+          if (activeId) void goForward(activeId)
+        }
+      },
+      { type: 'separator', id: 'sep.view.nav' },
       { id: 'sidebar.toggle', label: '切换侧边栏', onSelect: () => setSidebarCollapsed((prev) => !prev) },
       { type: 'separator', id: 'sep.view.1' },
-      { id: 'reload', label: '重新加载', onSelect: () => runMenuAction('reload') },
+      {
+        id: 'reload',
+        label: '重新加载',
+        onSelect: () => {
+          if (activeId) {
+            void reloadProfile(activeId)
+          } else {
+            void runMenuAction('reload')
+          }
+        }
+      },
       { id: 'toggleDevTools', label: '切换开发者工具', onSelect: () => runMenuAction('toggleDevTools') }
     ]
 
     if (topMenu.id === 'app') return appMenu
     if (topMenu.id === 'edit') return editMenu
     return viewMenu
-  }, [topMenu, immersive])
+  }, [topMenu, immersive, canGoBack, canGoForward, runtime.activeProfileId])
 
   const openTopMenu = (id: 'app' | 'edit' | 'view', el: HTMLElement) => {
     const rect = el.getBoundingClientRect()
@@ -259,6 +301,44 @@ export function App() {
               </button>
             </div>
           )}
+          <div className="topbarNav" role="toolbar" aria-label="浏览器导航">
+            <button
+              className="topbarAction"
+              type="button"
+              disabled={!runtime.activeProfileId || !canGoBack}
+              onClick={() => {
+                if (runtime.activeProfileId) void goBack(runtime.activeProfileId)
+              }}
+              aria-label="后退"
+              title={isMac ? '后退 (⌘+[)' : '后退 (Alt+←)'}
+            >
+              <IconChevronLeft />
+            </button>
+            <button
+              className="topbarAction"
+              type="button"
+              disabled={!runtime.activeProfileId || !canGoForward}
+              onClick={() => {
+                if (runtime.activeProfileId) void goForward(runtime.activeProfileId)
+              }}
+              aria-label="前进"
+              title={isMac ? '前进 (⌘+])' : '前进 (Alt+→)'}
+            >
+              <IconChevronRight />
+            </button>
+            <button
+              className="topbarAction"
+              type="button"
+              disabled={!runtime.activeProfileId}
+              onClick={() => {
+                if (runtime.activeProfileId) void reloadProfile(runtime.activeProfileId)
+              }}
+              aria-label="刷新"
+              title={isMac ? '刷新 (⌘+R)' : '刷新 (Ctrl+R)'}
+            >
+              <IconRefresh />
+            </button>
+          </div>
           <select
             className="topbarGroupSelect"
             value={activeGroupKey === null ? ALL_GROUP_VALUE : activeGroupKey}
@@ -378,8 +458,31 @@ export function App() {
             <div className="hint">
               <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>加载失败</div>
               <div className="mono">{runtime.loadState.message}</div>
+              {runtime.loadState.url && (
+                <div className="mono" style={{ marginTop: 8 }}>
+                  {runtime.loadState.url}
+                </div>
+              )}
               <div className="textMuted" style={{ marginTop: 12 }}>
                 请检查网络连接或允许域名设置
+              </div>
+              <div className="hintActions">
+                <button
+                  className="btn btnPrimary"
+                  type="button"
+                  onClick={() => {
+                    if (runtime.activeProfileId) void reloadProfile(runtime.activeProfileId)
+                  }}
+                >
+                  重试
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => runMenuAction('toggleDevTools')}
+                >
+                  打开 DevTools
+                </button>
               </div>
             </div>
           ) : null}
