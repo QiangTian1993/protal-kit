@@ -1,9 +1,9 @@
-import { invoke } from './request'
+import { invokeResult } from './request'
 
 export async function setLayoutSize(args: {
   sidebarWidth: number
   topbarHeight: number
   rightInset?: number
 }) {
-  return invoke<{ applied: boolean }>('app.layout.set', args)
+  return invokeResult<{ applied: boolean }>('app.layout.set', args)
 }

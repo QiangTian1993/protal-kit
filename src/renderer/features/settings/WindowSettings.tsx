@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AppConfig } from '../../../shared/schemas/app-config'
 import { getAppConfig, setWindowInitialSize } from '../../lib/ipc/app-config'
 
-type FieldState = { value: string; error: string | null }
-
 const WINDOW_SIZE_PRESETS = [
   { id: '1000x700', label: '1000×700', width: 1000, height: 700 },
   { id: '1280x800', label: '1280×800', width: 1280, height: 800 },
@@ -42,8 +40,10 @@ export function WindowSettings() {
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<string | null>(null)
-  const [width, setWidth] = useState<FieldState>({ value: '', error: null })
-  const [height, setHeight] = useState<FieldState>({ value: '', error: null })
+  const [error, setError] = useState<string | null>(null)
+  const [width, setWidth] = useState('')
+  const [height, setHeight] = useState('')
+  const [showValidation, setShowValidation] = useState(false)
   const [saving, setSaving] = useState(false)
   const [selection, setSelection] = useState<WindowSizeSelection>('auto')
 
@@ -52,16 +52,21 @@ export function WindowSettings() {
   function applyConfig(cfg: AppConfig) {
     setConfig(cfg)
     setSelection(deriveSelectionFromConfig(cfg))
-    setWidth({ value: formatOptionalNumber(cfg.window?.initialWidth), error: null })
-    setHeight({ value: formatOptionalNumber(cfg.window?.initialHeight), error: null })
+    setWidth(formatOptionalNumber(cfg.window?.initialWidth))
+    setHeight(formatOptionalNumber(cfg.window?.initialHeight))
+    setShowValidation(false)
   }
 
   useEffect(() => {
     void (async () => {
       try {
         setLoading(true)
+        setError(null)
         const cfg = await getAppConfig()
         applyConfig(cfg)
+      } catch (err) {
+        console.error('Failed to load app config:', err)
+        setError(err instanceof Error ? err.message : '加载失败，请重试')
       } finally {
         setLoading(false)
       }
@@ -69,11 +74,11 @@ export function WindowSettings() {
   }, [])
 
   const validation = useMemo(() => {
-    const widthValue = parsePositiveInt(width.value)
-    const heightValue = parsePositiveInt(height.value)
+    const widthValue = parsePositiveInt(width)
+    const heightValue = parsePositiveInt(height)
 
     const widthError =
-      width.value.trim().length === 0
+      width.trim().length === 0
         ? null
         : widthValue === null
           ? '请输入整数'
@@ -82,7 +87,7 @@ export function WindowSettings() {
             : null
 
     const heightError =
-      height.value.trim().length === 0
+      height.trim().length === 0
         ? null
         : heightValue === null
           ? '请输入整数'
@@ -97,7 +102,10 @@ export function WindowSettings() {
       heightError,
       canSave: widthError === null && heightError === null
     }
-  }, [height.value, width.value])
+  }, [height, width])
+
+  const displayWidthError = showValidation ? validation.widthError : null
+  const displayHeightError = showValidation ? validation.heightError : null
 
   async function refresh() {
     const cfg = await getAppConfig()
@@ -106,11 +114,13 @@ export function WindowSettings() {
 
   function handleSelectionChange(next: WindowSizeSelection) {
     setStatus(null)
+    setError(null)
     setSelection(next)
+    setShowValidation(false)
 
     if (next === 'auto') {
-      setWidth({ value: '', error: null })
-      setHeight({ value: '', error: null })
+      setWidth('')
+      setHeight('')
       return
     }
 
@@ -119,16 +129,14 @@ export function WindowSettings() {
     const preset = WINDOW_SIZE_PRESETS.find((p) => p.id === next)
     if (!preset) return
 
-    setWidth({ value: String(preset.width), error: null })
-    setHeight({ value: String(preset.height), error: null })
+    setWidth(String(preset.width))
+    setHeight(String(preset.height))
   }
 
   async function handleSave() {
     setStatus(null)
-    const nextWidthError = validation.widthError
-    const nextHeightError = validation.heightError
-    setWidth((prev) => ({ ...prev, error: nextWidthError }))
-    setHeight((prev) => ({ ...prev, error: nextHeightError }))
+    setError(null)
+    setShowValidation(true)
     if (!validation.canSave) return
 
     try {
@@ -139,6 +147,9 @@ export function WindowSettings() {
       })
       await refresh()
       setStatus('已保存，下次启动生效')
+    } catch (err) {
+      console.error('Failed to save window size:', err)
+      setError(err instanceof Error ? err.message : '保存失败，请重试')
     } finally {
       setSaving(false)
     }
@@ -146,11 +157,15 @@ export function WindowSettings() {
 
   async function handleReset() {
     setStatus(null)
+    setError(null)
     try {
       setSaving(true)
       await setWindowInitialSize({ initialWidth: null, initialHeight: null })
       await refresh()
       setStatus('已恢复默认（自动）')
+    } catch (err) {
+      console.error('Failed to reset window size:', err)
+      setError(err instanceof Error ? err.message : '恢复默认失败，请重试')
     } finally {
       setSaving(false)
     }
@@ -166,20 +181,10 @@ export function WindowSettings() {
 
   return (
     <div className="sectionContent">
-      <div className="flex itemsCenter justifyBetween">
-        <div>
-          <div className="textSecondary">初始窗口大小</div>
-          <div className="textMuted" style={{ fontSize: 11, marginTop: 2 }}>
-            仅影响启动时初始尺寸（单位：px），保存后下次启动生效
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btnSm" type="button" onClick={() => void handleSave()} disabled={saving}>
-            保存
-          </button>
-          <button className="btn btnSm btnGhost" type="button" onClick={() => void handleReset()} disabled={saving || !hasCustom}>
-            恢复默认
-          </button>
+      <div>
+        <div className="textSecondary">初始窗口大小</div>
+        <div className="textMuted" style={{ fontSize: 11, marginTop: 2 }}>
+          仅影响启动时初始尺寸（单位：px），保存后下次启动生效
         </div>
       </div>
 
@@ -216,16 +221,17 @@ export function WindowSettings() {
               className="input"
               inputMode="numeric"
               placeholder="自动"
-              value={width.value}
+              value={width}
               onChange={(e) => {
                 setStatus(null)
-                setWidth({ value: e.target.value, error: null })
+                setError(null)
+                setWidth(e.target.value)
               }}
-              onBlur={() => setWidth((prev) => ({ ...prev, error: validation.widthError }))}
-              aria-invalid={Boolean(validation.widthError)}
+              onBlur={() => setShowValidation(true)}
+              aria-invalid={Boolean(displayWidthError)}
             />
-            {validation.widthError && (
-              <div style={{ fontSize: 12, color: 'var(--danger-color)', marginTop: 4 }}>{validation.widthError}</div>
+            {displayWidthError && (
+              <div style={{ fontSize: 12, color: 'var(--danger-color)', marginTop: 4 }}>{displayWidthError}</div>
             )}
           </div>
 
@@ -238,26 +244,71 @@ export function WindowSettings() {
               className="input"
               inputMode="numeric"
               placeholder="自动"
-              value={height.value}
+              value={height}
               onChange={(e) => {
                 setStatus(null)
-                setHeight({ value: e.target.value, error: null })
+                setError(null)
+                setHeight(e.target.value)
               }}
-              onBlur={() => setHeight((prev) => ({ ...prev, error: validation.heightError }))}
-              aria-invalid={Boolean(validation.heightError)}
+              onBlur={() => setShowValidation(true)}
+              aria-invalid={Boolean(displayHeightError)}
             />
-            {validation.heightError && (
-              <div style={{ fontSize: 12, color: 'var(--danger-color)', marginTop: 4 }}>{validation.heightError}</div>
+            {displayHeightError && (
+              <div style={{ fontSize: 12, color: 'var(--danger-color)', marginTop: 4 }}>{displayHeightError}</div>
             )}
           </div>
         </div>
       )}
 
       {status && (
-        <div className="textMuted" style={{ marginTop: 10, fontSize: 12 }}>
+        <div className="textMuted" style={{ marginTop: 10, fontSize: 12 }} aria-live="polite">
           ✓ {status}
         </div>
       )}
+
+      {error && (
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 12,
+            color: 'var(--danger-color)',
+            background: 'color-mix(in srgb, var(--danger-color) 14%, transparent)',
+            padding: '8px 10px',
+            borderRadius: 8
+          }}
+          aria-live="polite"
+        >
+          ✗ {error}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          justifyContent: 'flex-end',
+          marginTop: 16,
+          paddingTop: 16,
+          borderTop: '1px solid var(--border-color)'
+        }}
+      >
+        <button
+          className="btn btnSm btnGhost"
+          type="button"
+          onClick={() => void handleReset()}
+          disabled={saving || !hasCustom}
+        >
+          恢复默认
+        </button>
+        <button
+          className="btn btnSm btnPrimary"
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+        >
+          {saving ? '保存中...' : '保存'}
+        </button>
+      </div>
     </div>
   )
 }

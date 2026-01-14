@@ -1839,6 +1839,14 @@ html[data-theme='dark'] .commandPaletteItem.isActive .commandPaletteItemIcon::af
   gap: 12px;
 }
 
+.routingRuleRow {
+  transition: background-color 0.15s ease;
+}
+
+.routingRuleRow:hover {
+  background: var(--surface-soft);
+}
+
 .libraryFormHeader {
   display: flex;
   align-items: center;

@@ -29,6 +29,17 @@ export function SettingsApp() {
     (LibraryNavigatePayload & { nonce: string }) | null
   >(null)
 
+  const sectionStyle = { marginBottom: 16, paddingBottom: 24 } as const
+  const lastSectionStyle = { marginBottom: 0, paddingBottom: 24 } as const
+  const sectionTitleStyle = {
+    fontSize: 16,
+    fontWeight: 600,
+    marginBottom: 16,
+    textTransform: 'none',
+    letterSpacing: 0,
+    color: 'var(--text-primary)'
+  } as const
+
   useEffect(() => {
     document.body.classList.add('isSettingsWindow')
     return () => document.body.classList.remove('isSettingsWindow')
@@ -57,13 +68,20 @@ export function SettingsApp() {
     <div className="settingsRoot">
       <div className="settingsHeader">
         <h1 className="settingsTitle">设置</h1>
-        <button className="btn btnSm btnIcon btnGhost" type="button" onClick={() => void closeSettingsWindow()}>
+        <button
+          className="btn btnSm btnIcon btnGhost"
+          type="button"
+          onClick={() => void closeSettingsWindow()}
+          aria-label="关闭设置"
+        >
           <IconClose />
         </button>
       </div>
 
-      <div className="settingsSection">
-        <div className="sectionTitle">外观</div>
+      <div className="settingsSection" style={sectionStyle}>
+        <div className="sectionTitle" style={sectionTitleStyle}>
+          外观
+        </div>
         <div className="sectionContent">
           <div className="flex itemsCenter justifyBetween">
             <label className="textSecondary" htmlFor="theme-mode">
@@ -100,13 +118,17 @@ export function SettingsApp() {
         </div>
       </div>
 
-      <div className="settingsSection">
-        <div className="sectionTitle">窗口</div>
+      <div className="settingsSection" style={sectionStyle}>
+        <div className="sectionTitle" style={sectionTitleStyle}>
+          窗口
+        </div>
         <WindowSettings />
       </div>
 
-      <div className="settingsSection">
-        <div className="sectionTitle">应用管理</div>
+      <div className="settingsSection" style={sectionStyle}>
+        <div className="sectionTitle" style={sectionTitleStyle}>
+          应用管理
+        </div>
         <LibraryView
           profiles={runtime.profiles}
           activeProfileId={runtime.activeProfileId}
@@ -118,13 +140,17 @@ export function SettingsApp() {
         />
       </div>
 
-      <div className="settingsSection">
-        <div className="sectionTitle">链接路由</div>
+      <div className="settingsSection" style={sectionStyle}>
+        <div className="sectionTitle" style={sectionTitleStyle}>
+          链接路由
+        </div>
         <RoutingSettings profiles={runtime.profiles} />
       </div>
 
-      <div className="settingsSection">
-        <div className="sectionTitle">数据</div>
+      <div className="settingsSection" style={lastSectionStyle}>
+        <div className="sectionTitle" style={sectionTitleStyle}>
+          数据
+        </div>
         <ClearData />
       </div>
     </div>
