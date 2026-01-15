@@ -128,21 +128,22 @@ export function RoutingSettings({ profiles }: RoutingSettingsProps) {
 
   return (
     <div className="sectionContent">
+      <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 20 }}>链接路由</h2>
       {/* Add New Rule Form */}
       <div
         style={{
-          marginBottom: 24,
-          padding: 16,
+          marginBottom: 20,
+          padding: 12,
           background: 'var(--surface-soft)',
           border: '1px solid var(--border-color)',
           borderRadius: 12
         }}
       >
-        <div className="textSecondary" style={{ marginBottom: 16, fontWeight: 500 }}>
+        <div className="textSecondary" style={{ marginBottom: 12, fontWeight: 500 }}>
           添加新规则
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <label className="textMuted" htmlFor="routing-pattern" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
               匹配模式

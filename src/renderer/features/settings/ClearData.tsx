@@ -28,6 +28,7 @@ export function ClearData() {
 
   return (
     <div className="sectionContent">
+      <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 20 }}>数据管理</h2>
       <div className="flex itemsCenter justifyBetween">
         <div>
           <div className="textSecondary">清理所有应用数据</div>

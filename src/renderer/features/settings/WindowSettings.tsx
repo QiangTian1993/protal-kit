@@ -181,6 +181,7 @@ export function WindowSettings() {
 
   return (
     <div className="sectionContent">
+      <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 20 }}>窗口</h2>
       <div>
         <div className="textSecondary">初始窗口大小</div>
         <div className="textMuted" style={{ fontSize: 11, marginTop: 2 }}>
@@ -188,7 +189,7 @@ export function WindowSettings() {
         </div>
       </div>
 
-      <div className="flex itemsCenter justifyBetween" style={{ marginTop: 12 }}>
+      <div className="flex itemsCenter justifyBetween" style={{ marginTop: 8 }}>
         <label className="textSecondary" htmlFor="window-initial-size-selection">
           选择
         </label>
@@ -211,7 +212,7 @@ export function WindowSettings() {
       </div>
 
       {selection === 'custom' && (
-        <div className="inputGroup" style={{ marginTop: 12 }}>
+        <div className="inputGroup" style={{ marginTop: 8 }}>
           <div style={{ flex: 1 }}>
             <label className="fieldLabel" htmlFor="window-initial-width">
               宽度
@@ -287,8 +288,8 @@ export function WindowSettings() {
           display: 'flex',
           gap: 8,
           justifyContent: 'flex-end',
-          marginTop: 16,
-          paddingTop: 16,
+          marginTop: 12,
+          paddingTop: 12,
           borderTop: '1px solid var(--border-color)'
         }}
       >
