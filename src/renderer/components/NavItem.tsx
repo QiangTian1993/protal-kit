@@ -15,15 +15,15 @@ export function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
         width: '100%',
-        padding: '10px 12px',
+        padding: '8px 12px',
         border: 'none',
-        borderRadius: 8,
-        background: isActive ? 'var(--surface-soft)' : 'transparent',
+        borderRadius: 6,
+        background: isActive ? 'var(--surface-active)' : 'transparent',
         color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-        fontSize: 14,
-        fontWeight: isActive ? 500 : 400,
+        fontSize: 13,
+        fontWeight: isActive ? 600 : 400,
         cursor: 'pointer',
         transition: 'all 0.15s ease',
         textAlign: 'left'
@@ -39,9 +39,19 @@ export function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
         }
       }}
     >
-      <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
+          flexShrink: 0
+        }}
+      >
+        {icon}
+      </span>
       <span>{label}</span>
     </button>
   )
 }
-

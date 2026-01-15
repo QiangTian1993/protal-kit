@@ -6,6 +6,7 @@
   --surface-strong: rgba(255, 255, 255, 0.7);
   --surface-soft: rgba(255, 255, 255, 0.46);
   --surface-hover: color-mix(in srgb, var(--surface-strong) 55%, transparent);
+  --surface-active: color-mix(in srgb, var(--accent-color) 12%, transparent);
   --topbar-bg: rgba(246, 246, 248, 0.5);
   --border-color: rgba(60, 60, 67, 0.12);
   --text-primary: #1a1a1e;
@@ -74,6 +75,7 @@
     --surface-strong: rgba(28, 28, 32, 0.7);
     --surface-soft: rgba(28, 28, 32, 0.48);
     --surface-hover: color-mix(in srgb, var(--surface-strong) 65%, transparent);
+    --surface-active: color-mix(in srgb, var(--accent-color) 18%, transparent);
     --topbar-bg: rgba(20, 20, 24, 0.55);
     --border-color: rgba(255, 255, 255, 0.08);
     --text-primary: #f5f5f7;

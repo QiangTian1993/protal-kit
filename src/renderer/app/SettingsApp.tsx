@@ -5,7 +5,14 @@ import { RoutingSettings } from '../features/settings/RoutingSettings'
 import { WindowSettings } from '../features/settings/WindowSettings'
 import { useAppRuntime } from './useAppRuntime'
 import { closeSettingsWindow } from '../lib/ipc/settings'
-import { IconClose } from '../components/Icons'
+import {
+  IconClose,
+  IconExternalLink,
+  IconGlobe,
+  IconImmersiveOff,
+  IconPencil,
+  IconTrash
+} from '../components/Icons'
 import { AppearanceSettings } from '../features/settings/AppearanceSettings'
 import { NavItem } from '../components/NavItem'
 
@@ -51,9 +58,11 @@ export function SettingsApp() {
     >
       <nav
         style={{
-          width: 200,
-          padding: '16px 12px',
+          width: 160,
+          minWidth: 160,
+          padding: '20px 12px',
           borderRight: '1px solid var(--border-color)',
+          backgroundColor: 'var(--surface-soft)',
           display: 'flex',
           flexDirection: 'column',
           gap: 16
@@ -64,7 +73,9 @@ export function SettingsApp() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingLeft: 12
+            paddingLeft: 12,
+            paddingRight: 4,
+            marginBottom: 20
           }}
         >
           <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>设置</h1>
@@ -73,6 +84,7 @@ export function SettingsApp() {
             type="button"
             onClick={() => void closeSettingsWindow()}
             aria-label="关闭设置"
+            style={{ opacity: 0.6 }}
           >
             <IconClose />
           </button>
@@ -80,39 +92,39 @@ export function SettingsApp() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <NavItem
-            icon="🎨"
+            icon={<IconPencil style={{ width: 20, height: 20 }} />}
             label="外观"
             isActive={activeTab === 'appearance'}
             onClick={() => setActiveTab('appearance')}
           />
           <NavItem
-            icon="🪟"
+            icon={<IconImmersiveOff style={{ width: 20, height: 20 }} />}
             label="窗口"
             isActive={activeTab === 'window'}
             onClick={() => setActiveTab('window')}
           />
           <NavItem
-            icon="📱"
-            label="应用管理"
+            icon={<IconGlobe style={{ width: 20, height: 20 }} />}
+            label="应用"
             isActive={activeTab === 'apps'}
             onClick={() => setActiveTab('apps')}
           />
           <NavItem
-            icon="🔗"
-            label="链接路由"
+            icon={<IconExternalLink style={{ width: 20, height: 20 }} />}
+            label="路由"
             isActive={activeTab === 'routing'}
             onClick={() => setActiveTab('routing')}
           />
           <NavItem
-            icon="🗑️"
-            label="数据管理"
+            icon={<IconTrash style={{ width: 20, height: 20 }} />}
+            label="数据"
             isActive={activeTab === 'data'}
             onClick={() => setActiveTab('data')}
           />
         </div>
       </nav>
 
-      <div className="settingsContent" style={{ flex: 1, padding: 24, overflow: 'auto' }}>
+      <div className="settingsContent" style={{ flex: 1, padding: 32, overflow: 'auto' }}>
         <div style={{ display: activeTab === 'appearance' ? 'block' : 'none' }}>
           <AppearanceSettings />
         </div>
