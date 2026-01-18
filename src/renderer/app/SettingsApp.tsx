@@ -124,7 +124,7 @@ export function SettingsApp() {
         </div>
       </nav>
 
-      <div className="settingsContent" style={{ flex: 1, padding: 32, overflow: 'auto' }}>
+      <div className="settingsContent" style={{ flex: 1, padding: 32, overflow: 'auto', width: '100%' }}>
         <div style={{ display: activeTab === 'appearance' ? 'block' : 'none' }}>
           <AppearanceSettings />
         </div>

@@ -271,34 +271,6 @@ export function App() {
               >
                 Portal Kit
               </button>
-              <button
-                type="button"
-                className="topbarMenuButton"
-                role="menuitem"
-                aria-haspopup="menu"
-                aria-expanded={topMenu?.id === 'edit'}
-                onClick={(e) => {
-                  const el = e.currentTarget
-                  if (topMenu?.id === 'edit') setTopMenu(null)
-                  else openTopMenu('edit', el)
-                }}
-              >
-                编辑
-              </button>
-              <button
-                type="button"
-                className="topbarMenuButton"
-                role="menuitem"
-                aria-haspopup="menu"
-                aria-expanded={topMenu?.id === 'view'}
-                onClick={(e) => {
-                  const el = e.currentTarget
-                  if (topMenu?.id === 'view') setTopMenu(null)
-                  else openTopMenu('view', el)
-                }}
-              >
-                视图
-              </button>
             </div>
           )}
           <div className="topbarNav" role="toolbar" aria-label="浏览器导航">

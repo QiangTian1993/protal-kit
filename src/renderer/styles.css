@@ -1101,6 +1101,8 @@ textarea.input {
 .listItemContent {
   flex: 1;
   min-width: 0;
+  /* 确保应用名称有足够的显示空间 */
+  flex-basis: 200px;
 }
 
 .listItemName {
@@ -1133,9 +1135,11 @@ textarea.input {
 .listItemActions {
   display: flex;
   gap: 4px;
-  flex-shrink: 0;
+  /* 允许按钮组在必要时收缩，但设置最小宽度 */
+  flex-shrink: 1;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: fit-content;
 }
 
 /* Search */

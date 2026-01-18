@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { createSafeWebPreferences } from '../security/web-preferences'
 import { UI_TOPBAR_HEIGHT } from './main-window'
 
-const SETTINGS_DRAWER_WIDTH = 560
+const SETTINGS_DRAWER_WIDTH = 800
 
 export class SettingsWindowManager {
   private view: BrowserView | null = null
