@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { WebAppProfile, Workspace } from '../../shared/types'
+import type { AppProfile, Workspace } from '../../shared/types'
 import { listProfiles } from '../lib/ipc/profiles'
 import { getWorkspace } from '../lib/ipc/workspace'
 
@@ -10,7 +10,7 @@ export type WebAppLoadState =
   | { state: 'failed'; profileId: string; message: string; url?: string }
 
 export function useAppRuntime() {
-  const [profiles, setProfiles] = useState<WebAppProfile[]>([])
+  const [profiles, setProfiles] = useState<AppProfile[]>([])
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
   const [loadState, setLoadState] = useState<WebAppLoadState>({ state: 'idle' })

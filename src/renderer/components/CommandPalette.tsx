@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import type { WebAppProfile, WebAppProfileInput } from '../../shared/types'
+import { isNativeAppProfile, isWebAppProfile, type AppProfile, type WebAppProfileInput } from '../../shared/types'
 import { SearchInput } from './SearchInput'
 import { fuzzySearch, computeMatchRanges, type MatchRange } from '../utils/fuzzySearch'
 import { switchProfile } from '../lib/ipc/workspace'
 import { hideActiveView, showActiveView } from '../lib/ipc/webapps'
+import { switchToNativeApp } from '../lib/ipc/native-apps'
 import { createProfile } from '../lib/ipc/profiles'
 import { ProfileFormModal } from '../features/library/ProfileForm'
 import { IconPlus } from './Icons'
@@ -18,7 +19,7 @@ export type CommandDescriptor = {
 }
 
 type PaletteItem =
-  | { type: 'profile'; id: string; profile: WebAppProfile; matches?: { name: MatchRange[]; startUrl: MatchRange[] } }
+  | { type: 'profile'; id: string; profile: AppProfile; matches?: { name: MatchRange[]; detail: MatchRange[] } }
   | { type: 'command'; id: string; command: CommandDescriptor }
   | { type: 'createProfile'; id: string; query: string }
 
@@ -31,7 +32,7 @@ function defaultProfileInput(): WebAppProfileInput {
     icon: undefined,
     group: undefined,
     pinned: true,
-    isolation: { partition: '' },
+    isolation: { partition: 'persist:draft' },
     externalLinks: { policy: 'open-in-popup' }
   }
 }
@@ -83,13 +84,15 @@ function toFileUrl(filePath: string) {
   return `file://${encodeURI(normalized)}`
 }
 
-function getIconUrls(profile: WebAppProfile): string[] {
+function getIconUrls(profile: AppProfile): string[] {
   const urls: string[] = []
 
   if (profile.icon?.type === 'file') {
     urls.push(toFileUrl(profile.icon.value))
     return urls
   }
+
+  if (!isWebAppProfile(profile)) return urls
 
   try {
     const url = new URL(profile.startUrl)
@@ -102,7 +105,7 @@ function getIconUrls(profile: WebAppProfile): string[] {
   }
 }
 
-function AppIcon({ profile }: { profile: WebAppProfile }) {
+function AppIcon({ profile }: { profile: AppProfile }) {
   const [urlIndex, setUrlIndex] = useState(0)
   const [imageError, setImageError] = useState(false)
   const iconUrls = useMemo(() => getIconUrls(profile), [profile])
@@ -167,7 +170,7 @@ function AppIcon({ profile }: { profile: WebAppProfile }) {
 interface CommandPaletteProps {
   isOpen: boolean
   onClose: () => void
-  profiles: WebAppProfile[]
+  profiles: AppProfile[]
   activeProfileId: string | null
   recentProfileIds?: string[]
   commands?: CommandDescriptor[]
@@ -237,7 +240,7 @@ export function CommandPalette({
   const recentProfiles = useMemo(() => {
     return recentProfileIds
       .map((id) => profiles.find((p) => p.id === id))
-      .filter((p): p is WebAppProfile => p !== undefined)
+      .filter((p): p is AppProfile => p !== undefined)
       .slice(0, 10)
   }, [profiles, recentProfileIds])
 
@@ -280,7 +283,7 @@ export function CommandPalette({
         type: 'profile',
         id: `profile:${result.profile.id}`,
         profile: result.profile,
-        matches: { name: result.matches.name, startUrl: result.matches.startUrl }
+        matches: { name: result.matches.name, detail: result.matches.detail }
       })
     }
     return out
@@ -316,7 +319,11 @@ export function CommandPalette({
 
   const handleSelect = React.useCallback((item: PaletteItem) => {
     if (item.type === 'profile') {
-      void switchProfile(item.profile.id)
+      if (isNativeAppProfile(item.profile)) {
+        void switchToNativeApp(item.profile.id)
+      } else {
+        void switchProfile(item.profile.id)
+      }
       onClose()
       setQuery('')
       return
@@ -462,6 +469,10 @@ export function CommandPalette({
         onSubmit={async (input) => {
           setCreateError(null)
           try {
+            if (input.type === 'native') {
+              throw new Error('命令面板暂不支持创建原生应用，请在「设置 → 应用」中创建')
+            }
+
             const id = input.id || crypto.randomUUID()
             const patch: WebAppProfileInput = {
               ...input,
@@ -470,7 +481,8 @@ export function CommandPalette({
             }
             const created = await createProfile(patch)
             if (createAutoSwitch) {
-              await switchProfile(created.id)
+              if (isNativeAppProfile(created)) await switchToNativeApp(created.id)
+              else await switchProfile(created.id)
             }
             setTimeout(() => {
               setQuery('')
@@ -488,12 +500,18 @@ export function CommandPalette({
 }
 
 interface CommandPaletteProfileItemProps {
-  profile: WebAppProfile
-  matches?: { name: MatchRange[]; startUrl: MatchRange[] }
+  profile: AppProfile
+  matches?: { name: MatchRange[]; detail: MatchRange[] }
   isSelected: boolean
   isActive: boolean
   onClick: () => void
   onMouseEnter: () => void
+}
+
+function getProfileDetailText(profile: AppProfile): string {
+  if (isWebAppProfile(profile)) return profile.startUrl
+  const exe = profile.executable
+  return [exe.path, exe.bundleId, exe.appName, exe.desktopEntry].filter(Boolean).join(' ')
 }
 
 function CommandPaletteProfileItem({
@@ -504,6 +522,9 @@ function CommandPaletteProfileItem({
   onClick,
   onMouseEnter
 }: CommandPaletteProfileItemProps) {
+  const typeTag = isNativeAppProfile(profile) ? '原生' : 'Web'
+  const detailText = getProfileDetailText(profile)
+
   return (
     <div
       className={`commandPaletteItem ${isSelected ? 'isSelected' : ''} ${isActive ? 'isActive' : ''}`}
@@ -518,12 +539,11 @@ function CommandPaletteProfileItem({
           <HighlightText text={profile.name} ranges={matches?.name} />
         </div>
         <div className="commandPaletteItemUrl">
-          <HighlightText text={profile.startUrl} ranges={matches?.startUrl} />
+          <HighlightText text={detailText} ranges={matches?.detail} />
         </div>
       </div>
-      {isActive && (
-        <div className="commandPaletteItemBadge">当前</div>
-      )}
+      <div className="commandPaletteItemTag">{typeTag}</div>
+      {isActive && <div className="commandPaletteItemBadge">当前</div>}
     </div>
   )
 }

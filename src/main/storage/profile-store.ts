@@ -1,15 +1,40 @@
 import { randomUUID } from 'node:crypto'
-import type { WebAppProfile, WebAppProfileInput } from '../../shared/types'
 import {
-  webAppProfileSchema,
+  isNativeAppProfile,
+  isWebAppProfile,
+  type AppProfile,
+  type AppProfileInput,
+  type NativeAppProfile,
+  type NativeAppProfileInput,
+  type WebAppProfile,
+  type WebAppProfileInput
+} from '../../shared/types'
+import {
+  appProfileSchema,
+  nativeAppProfileInputSchema,
+  nativeAppProfileSchema,
+  webAppProfileSchemaWithType,
   webAppProfileInputSchema,
   normalizeAllowedOrigins
 } from '../../shared/schemas/profile'
 import { readJsonFile, writeJsonFileAtomic } from './file-store'
 
-type ProfilesFile = { schemaVersion: 1; profiles: WebAppProfile[] }
+type ProfilesFile = { schemaVersion: 1; profiles: unknown[] }
 
-const emptyFile: ProfilesFile = { schemaVersion: 1, profiles: [] }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function shouldPersistProfile(profile: AppProfile): boolean {
+  if (!isWebAppProfile(profile)) return true
+  return !profile.temporary
+}
+
+function migrateLegacyProfileType(profile: unknown): { migrated: unknown; didMigrate: boolean } {
+  if (!isRecord(profile)) return { migrated: profile, didMigrate: false }
+  if ('type' in profile) return { migrated: profile, didMigrate: false }
+  return { migrated: { ...profile, type: 'web' }, didMigrate: true }
+}
 
 export class ProfileStore {
   private path: string
@@ -19,30 +44,59 @@ export class ProfileStore {
   }
 
   async list(): Promise<WebAppProfile[]> {
-    const file = (await readJsonFile<ProfilesFile>(this.path)) ?? emptyFile
-    // 过滤掉临时应用，不持久化
-    return file.profiles
-      .filter(profile => !profile.temporary)
-      .map((profile) => webAppProfileSchema.parse(profile))
+    return await this.listWebAppProfiles()
   }
 
-  async listAll(): Promise<WebAppProfile[]> {
-    // 包含临时应用的完整列表（用于内存管理）
-    const file = (await readJsonFile<ProfilesFile>(this.path)) ?? emptyFile
-    return file.profiles.map((profile) => webAppProfileSchema.parse(profile))
+  async listWebAppProfiles(): Promise<WebAppProfile[]> {
+    const profiles = await this.listAllAppProfiles()
+    return profiles.filter(isWebAppProfile).filter((profile) => !profile.temporary)
+  }
+
+  async listNativeAppProfiles(): Promise<NativeAppProfile[]> {
+    const profiles = await this.listAllAppProfiles()
+    return profiles.filter(isNativeAppProfile)
+  }
+
+  private async listAllAppProfiles(): Promise<AppProfile[]> {
+    const rawFile = await readJsonFile<unknown>(this.path)
+    if (!rawFile) return []
+
+    if (!isRecord(rawFile)) {
+      throw new Error('profiles_file_invalid: 根节点必须为对象')
+    }
+
+    const rawProfiles = Array.isArray(rawFile.profiles) ? rawFile.profiles : []
+    let didMigrate = false
+    const migratedProfiles = rawProfiles.map((profile) => {
+      const migrated = migrateLegacyProfileType(profile)
+      if (migrated.didMigrate) didMigrate = true
+      return migrated.migrated
+    })
+
+    const profiles = migratedProfiles.map((profile) => appProfileSchema.parse(profile))
+
+    // 旧数据兼容：如果缺少 type 字段，则补齐 type: 'web' 并写回文件（幂等）喵～
+    if (didMigrate) {
+      const nextFile: ProfilesFile = { schemaVersion: 1, profiles: migratedProfiles }
+      await writeJsonFileAtomic(this.path, nextFile)
+    }
+
+    return profiles
   }
 
   async create(input: WebAppProfileInput): Promise<WebAppProfile> {
     const now = new Date().toISOString()
     const validated = webAppProfileInputSchema.parse(input)
-    const profiles = await this.listAll() // 使用 listAll 获取包含临时应用的列表
+    const profiles = await this.listAllAppProfiles()
     const pinned = validated.pinned ?? true
     const nextOrder =
       pinned && validated.order === undefined
         ? Math.max(0, ...profiles.map((p) => p.order ?? 0)) + 1
         : validated.order
-    const profile: WebAppProfile = webAppProfileSchema.parse({
+
+    const profile = webAppProfileSchemaWithType.parse({
       ...validated,
+      type: 'web',
       id: validated.id || randomUUID(),
       allowedOrigins: normalizeAllowedOrigins(validated.startUrl, validated.allowedOrigins),
       pinned,
@@ -56,87 +110,136 @@ export class ProfileStore {
       return profile
     }
 
-    const next = [...profiles.filter(p => !p.temporary), profile] // 只保存非临时应用
+    const next = [...profiles.filter(shouldPersistProfile), profile]
     await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: next })
     return profile
   }
 
-  async update(profileId: string, patch: Partial<WebAppProfileInput>): Promise<WebAppProfile> {
-    // 先尝试从持久化列表中查找
-    let profiles = await this.list()
-    let idx = profiles.findIndex((p) => p.id === profileId)
+  async createNativeProfile(input: NativeAppProfileInput): Promise<NativeAppProfile> {
+    const now = new Date().toISOString()
+    const validated = nativeAppProfileInputSchema.parse(input)
+    const profiles = await this.listAllAppProfiles()
+    const pinned = validated.pinned ?? true
+    const nextOrder =
+      pinned && validated.order === undefined
+        ? Math.max(0, ...profiles.map((p) => p.order ?? 0)) + 1
+        : validated.order
 
-    // 如果没找到，可能是临时应用，从完整列表中查找
-    if (idx === -1) {
-      profiles = await this.listAll()
-      idx = profiles.findIndex((p) => p.id === profileId)
+    const profile = nativeAppProfileSchema.parse({
+      ...validated,
+      id: validated.id || randomUUID(),
+      pinned,
+      order: nextOrder,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const next = [...profiles.filter(shouldPersistProfile), profile]
+    await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: next })
+    return profile
+  }
+
+  async createAppProfile(input: AppProfileInput): Promise<AppProfile> {
+    if (input.type === 'native') {
+      return await this.createNativeProfile(input)
     }
+    return await this.create(input)
+  }
 
+  async update(profileId: string, patch: Partial<WebAppProfileInput>): Promise<WebAppProfile> {
+    const profiles = await this.listAllAppProfiles()
+    const idx = profiles.findIndex((p) => p.id === profileId)
     if (idx === -1) throw new Error(`profile_not_found:${profileId}`)
+    const existing = profiles[idx]
+    if (!existing || !isWebAppProfile(existing)) throw new Error(`profile_not_found:${profileId}`)
 
     const now = new Date().toISOString()
-    const nextCandidate = { ...profiles[idx], ...patch, updatedAt: now }
-    const next = webAppProfileSchema.parse({
+    const nextCandidate = { ...existing, ...patch, updatedAt: now }
+    const next = webAppProfileSchemaWithType.parse({
       ...nextCandidate,
+      type: 'web',
       allowedOrigins: normalizeAllowedOrigins(nextCandidate.startUrl, nextCandidate.allowedOrigins)
     })
 
-    // 如果是临时应用转为正式应用，需要持久化
-    if (profiles[idx].temporary && !next.temporary) {
-      const persistedProfiles = await this.list()
-      const out = [...persistedProfiles, next]
-      await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: out })
-      return next
-    }
-
-    // 正常更新
-    const out = [...profiles.filter(p => !p.temporary)]
+    const out = [...profiles]
     out[idx] = next
-    await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: out })
+    await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: out.filter(shouldPersistProfile) })
     return next
+  }
+
+  async updateNativeProfile(profileId: string, patch: Partial<NativeAppProfileInput>): Promise<NativeAppProfile> {
+    const profiles = await this.listAllAppProfiles()
+    const idx = profiles.findIndex((p) => p.id === profileId)
+    if (idx === -1) throw new Error(`profile_not_found:${profileId}`)
+    const existing = profiles[idx]
+    if (!existing || !isNativeAppProfile(existing)) throw new Error(`profile_not_found:${profileId}`)
+
+    const now = new Date().toISOString()
+    const nextCandidate = { ...existing, ...patch, updatedAt: now, type: 'native' as const }
+    const next = nativeAppProfileSchema.parse(nextCandidate)
+
+    const out = [...profiles]
+    out[idx] = next
+    await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: out.filter(shouldPersistProfile) })
+    return next
+  }
+
+  async updateAppProfile(profileId: string, patch: Partial<AppProfileInput>): Promise<AppProfile> {
+    const profiles = await this.listAllAppProfiles()
+    const existing = profiles.find((p) => p.id === profileId)
+    if (!existing) throw new Error(`profile_not_found:${profileId}`)
+    if (isNativeAppProfile(existing)) return await this.updateNativeProfile(profileId, patch as Partial<NativeAppProfileInput>)
+    return await this.update(profileId, patch as Partial<WebAppProfileInput>)
   }
 
   async batchUpdate(items: Array<{ profileId: string; patch: Partial<WebAppProfileInput> }>): Promise<WebAppProfile[]> {
     if (items.length === 0) return this.list()
 
-    // 获取所有应用（包括临时应用）
-    const allProfiles = await this.listAll()
+    const allProfiles = await this.listAllAppProfiles()
     const now = new Date().toISOString()
     const patchById = new Map(items.map((item) => [item.profileId, item.patch]))
     let updated = false
 
-    const updatedProfiles = allProfiles.map((profile) => {
+    const updatedProfiles: AppProfile[] = allProfiles.map((profile) => {
       const patch = patchById.get(profile.id)
       if (!patch) return profile
+      if (!isWebAppProfile(profile)) return profile
+
       updated = true
       const nextCandidate = { ...profile, ...patch, updatedAt: now }
-      return webAppProfileSchema.parse({
+      return webAppProfileSchemaWithType.parse({
         ...nextCandidate,
+        type: 'web',
         allowedOrigins: normalizeAllowedOrigins(nextCandidate.startUrl, nextCandidate.allowedOrigins)
       })
     })
 
     if (!updated) return await this.list()
 
-    // 只保存非临时应用
-    const out = updatedProfiles.filter(p => !p.temporary)
-    await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: out })
+    await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: updatedProfiles.filter(shouldPersistProfile) })
 
-    return updatedProfiles
+    return updatedProfiles.filter(isWebAppProfile)
   }
 
   async delete(profileId: string): Promise<void> {
-    const profiles = await this.list()
-    const next = profiles.filter((p) => p.id !== profileId)
+    const profiles = await this.listAllAppProfiles()
+    const next = profiles.filter((profile) => profile.id !== profileId).filter(shouldPersistProfile)
     await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: next })
   }
 
-  async importProfiles(profiles: WebAppProfile[]) {
-    const validated = profiles.map((p) => webAppProfileSchema.parse(p))
+  async importProfiles(profiles: unknown) {
+    if (!Array.isArray(profiles)) throw new Error('profiles_import_invalid: profiles 必须是数组')
+    const migrated = profiles.map((profile) => {
+      const result = migrateLegacyProfileType(profile)
+      return result.migrated
+    })
+
+    const validated = migrated.map((profile) => appProfileSchema.parse(profile)).filter(shouldPersistProfile)
     await writeJsonFileAtomic(this.path, { schemaVersion: 1, profiles: validated })
   }
 
-  async exportProfiles() {
-    return this.list()
+  async exportProfiles(): Promise<AppProfile[]> {
+    const profiles = await this.listAllAppProfiles()
+    return profiles.filter(shouldPersistProfile)
   }
 }

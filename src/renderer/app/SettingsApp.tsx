@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LibraryView } from '../features/library/LibraryView'
 import { ClearData } from '../features/settings/ClearData'
 import { RoutingSettings } from '../features/settings/RoutingSettings'
 import { WindowSettings } from '../features/settings/WindowSettings'
 import { useAppRuntime } from './useAppRuntime'
 import { closeSettingsWindow } from '../lib/ipc/settings'
+import { isWebAppProfile } from '../../shared/types'
 import {
   IconClose,
   IconExternalLink,
@@ -50,6 +51,8 @@ export function SettingsApp() {
     })
     return () => unsub()
   }, [])
+
+  const webProfiles = useMemo(() => runtime.profiles.filter(isWebAppProfile), [runtime.profiles])
 
   return (
     <div
@@ -143,7 +146,7 @@ export function SettingsApp() {
           />
         </div>
         <div style={{ display: activeTab === 'routing' ? 'block' : 'none' }}>
-          <RoutingSettings profiles={runtime.profiles} />
+          <RoutingSettings profiles={webProfiles} />
         </div>
         <div style={{ display: activeTab === 'data' ? 'block' : 'none' }}>
           <ClearData />

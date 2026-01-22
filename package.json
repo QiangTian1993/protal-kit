@@ -18,7 +18,7 @@
     "format": "prettier -w .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "playwright test"
+    "test:integration": "npm run build && playwright test"
   },
   "build": {
     "appId": "com.portal.kit",
@@ -41,21 +41,28 @@
     "linux": {
       "icon": "build/icons/icon.png",
       "category": "Utility"
+    },
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
     }
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.5.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^4.5.0",
     "electron": "^36.0.0",
     "electron-builder": "^26.0.12",
     "electron-vite": "^3.1.0",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.0",
+    "jsdom": "^26.0.0",
     "playwright": "^1.49.0",
     "prettier": "^3.3.0",
     "react": "^19.0.0",
@@ -66,5 +73,11 @@
   },
   "dependencies": {
     "zod": "^3.23.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild": "^0.25.12",
+      "tar": "^7.5.3"
+    }
   }
 }

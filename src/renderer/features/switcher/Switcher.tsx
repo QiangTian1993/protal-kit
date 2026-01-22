@@ -1,8 +1,9 @@
 import React, { useMemo, useRef, useState, useLayoutEffect, useEffect } from 'react'
-import type { WebAppProfile } from '../../../shared/types'
+import { isNativeAppProfile, isWebAppProfile, type AppProfile } from '../../../shared/types'
 import { batchUpdateProfiles, updateProfile } from '../../lib/ipc/profiles'
 import { navigateSettingsToLibrary } from '../../lib/ipc/settings'
 import { switchProfile } from '../../lib/ipc/workspace'
+import { switchToNativeApp } from '../../lib/ipc/native-apps'
 import { popupContextMenu, type ContextMenuPopupItem } from '../../lib/ipc/context-menu'
 import { computePinnedReorderItems, normalizeProfileGroup, sortPinnedProfiles } from '../../utils/profileReorder'
 
@@ -40,13 +41,15 @@ function toFileUrl(filePath: string) {
   return `file://${encodeURI(normalized)}`
 }
 
-function getIconUrls(profile: WebAppProfile): string[] {
+function getIconUrls(profile: AppProfile): string[] {
   const urls: string[] = []
 
   if (profile.icon?.type === 'file') {
     urls.push(toFileUrl(profile.icon.value))
     return urls
   }
+
+  if (!isWebAppProfile(profile)) return urls
 
   try {
     const url = new URL(profile.startUrl)
@@ -59,7 +62,7 @@ function getIconUrls(profile: WebAppProfile): string[] {
   }
 }
 
-function AppIcon(props: { profile: WebAppProfile; loading?: boolean }) {
+function AppIcon(props: { profile: AppProfile; loading?: boolean }) {
   const [urlIndex, setUrlIndex] = useState(0)
   const [imageError, setImageError] = useState(false)
   const iconUrls = useMemo(() => getIconUrls(props.profile), [props.profile])
@@ -117,7 +120,7 @@ function displayGroupName(group: string) {
 }
 
 interface SwitcherProps {
-  profiles: WebAppProfile[]
+  profiles: AppProfile[]
   activeProfileId: string | null
   loadingProfileId?: string | null
   activeGroupKey?: string | null
@@ -134,7 +137,7 @@ export function Switcher({
   const pinned = useMemo(() => sortPinnedProfiles(profiles), [profiles])
 
   const groups = useMemo(() => {
-    const map = new Map<string, WebAppProfile[]>()
+    const map = new Map<string, AppProfile[]>()
     for (const profile of pinned) {
       const key = normalizeProfileGroup(profile.group)
       const list = map.get(key) ?? []
@@ -230,9 +233,15 @@ export function Switcher({
                     ]
 
                     const actions: Record<string, () => void | Promise<void>> = {
-                      edit: () => navigateSettingsToLibrary({ mode: 'edit', profileId: p.id }),
-                      revealInLibrary: () => navigateSettingsToLibrary({ mode: 'reveal', profileId: p.id }),
-                      togglePinned: () => updateProfile(p.id, { pinned: false })
+                      edit: async () => {
+                        await navigateSettingsToLibrary({ mode: 'edit', profileId: p.id })
+                      },
+                      revealInLibrary: async () => {
+                        await navigateSettingsToLibrary({ mode: 'reveal', profileId: p.id })
+                      },
+                      togglePinned: async () => {
+                        await updateProfile(p.id, { pinned: false })
+                      }
                     }
 
                     void popupContextMenu({ position: { x: e.clientX, y: e.clientY }, items: menuItems }).then(
@@ -272,7 +281,11 @@ export function Switcher({
                 onClick={() => {
                   if (Date.now() < ignoreClickUntil.current) return
                   if (draggingId) return
-                  switchProfile(p.id)
+                  if (isNativeAppProfile(p)) {
+                    void switchToNativeApp(p.id)
+                    return
+                  }
+                  void switchProfile(p.id)
                 }}
                 title={groupName ? `${p.name} · ${displayGroupName(groupName)} · 拖拽排序` : `${p.name} · 拖拽排序`}
                 aria-label={`切换到 ${p.name}`}

@@ -17,6 +17,15 @@ import { attachKeyboardShortcuts } from '../policy/keyboard-shortcuts'
 import { snapshotPath } from '../storage/paths'
 import { writeFileSync, unlinkSync, existsSync } from 'node:fs'
 
+function destroyWebContents(webContents: WebContents) {
+  const candidate = webContents as unknown as { destroy?: () => void; close?: () => void }
+  if (typeof candidate.destroy === 'function') {
+    candidate.destroy()
+    return
+  }
+  candidate.close?.()
+}
+
 export class WebAppManager {
   private win: BrowserWindow
   private profiles: ProfileStore
@@ -107,7 +116,7 @@ export class WebAppManager {
     }
     const managed = this.views.get(profileId)
     if (managed) {
-      managed.view.webContents.destroy()
+      destroyWebContents(managed.view.webContents)
       this.views.delete(profileId)
     }
     await this.persistWorkspace()
@@ -426,7 +435,7 @@ export class WebAppManager {
       await this.workspaceStore.save(ws)
 
       // 销毁 webContents 释放内存
-      managed.view.webContents.destroy()
+      destroyWebContents(managed.view.webContents)
       this.views.delete(profileId)
 
       this.logger.info('hibernate.success', { profileId })

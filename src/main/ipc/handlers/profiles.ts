@@ -1,15 +1,17 @@
 import type { IpcMain } from 'electron'
 import type { IpcContext } from '../router'
-import type { WebAppProfileInput } from '../../../shared/types'
+import { isNativeAppProfile, isWebAppProfile, type AppProfileInput, type WebAppProfileInput } from '../../../shared/types'
 
 export function registerProfilesHandlers(ipc: IpcMain, ctx: IpcContext) {
   ipc.handle('profiles.list', async (_event, payload: { requestId: string }) => {
-    const persistedProfiles = await ctx.profiles.list()
+    const persistedProfiles = await ctx.profiles.exportProfiles()
     const tempProfiles = ctx.webapps.getTempProfiles()
     const profiles = [...persistedProfiles, ...tempProfiles]
+    const nativeCount = persistedProfiles.filter(isNativeAppProfile).length
 
     ctx.logger.info('profiles.list', {
-      persistedCount: persistedProfiles.length,
+      persistedCount: persistedProfiles.length - nativeCount,
+      nativeCount,
       tempCount: tempProfiles.length,
       totalCount: profiles.length
     })
@@ -17,26 +19,28 @@ export function registerProfilesHandlers(ipc: IpcMain, ctx: IpcContext) {
     return { requestId: payload.requestId, result: { profiles } }
   })
 
-  ipc.handle('profiles.create', async (_event, payload: { requestId: string; profile: WebAppProfileInput }) => {
-    const profile = await ctx.profiles.create(payload.profile)
-    ctx.logger.info('profiles.create', { profileId: profile.id })
+  ipc.handle('profiles.create', async (_event, payload: { requestId: string; profile: AppProfileInput }) => {
+    const profile = await ctx.profiles.createAppProfile(payload.profile)
+    ctx.logger.info('profiles.create', { profileId: profile.id, type: profile.type ?? 'web' })
     ctx.notify('profiles.changed', { type: 'created', profileId: profile.id })
     return { requestId: payload.requestId, result: { profile } }
   })
 
   ipc.handle(
     'profiles.update',
-    async (_event, payload: { requestId: string; profileId: string; patch: Partial<WebAppProfileInput> }) => {
-      const profile = await ctx.profiles.update(payload.profileId, payload.patch)
+    async (_event, payload: { requestId: string; profileId: string; patch: Partial<AppProfileInput> }) => {
+      const profile = await ctx.profiles.updateAppProfile(payload.profileId, payload.patch)
       ctx.logger.info('profiles.update', { profileId: profile.id })
 
       // 如果是临时应用转为正式应用
-      if (payload.patch.temporary === false) {
+      if (isWebAppProfile(profile) && 'temporary' in payload.patch && payload.patch.temporary === false) {
         ctx.webapps.removeTempProfile(payload.profileId)
         ctx.logger.info('profiles.tempToRegular', { profileId: payload.profileId })
       }
 
-      ctx.webapps.updateProfile(profile)
+      if (isWebAppProfile(profile)) {
+        ctx.webapps.updateProfile(profile)
+      }
       ctx.notify('profiles.changed', { type: 'updated', profileId: profile.id })
       return { requestId: payload.requestId, result: { profile } }
     }

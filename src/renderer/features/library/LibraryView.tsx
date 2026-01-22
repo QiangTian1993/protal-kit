@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { WebAppProfile, WebAppProfileInput } from '../../../shared/types'
+import {
+  isNativeAppProfile,
+  isWebAppProfile,
+  type AppProfile,
+  type AppProfileInput,
+  type NativeAppProfile,
+  type NativeAppProfileInput,
+  type WebAppProfileInput
+} from '../../../shared/types'
 import { batchUpdateProfiles, createProfile, deleteProfile, updateProfile } from '../../lib/ipc/profiles'
 import { switchProfile } from '../../lib/ipc/workspace'
 import { reloadProfile } from '../../lib/ipc/webapps'
+import { listNativeApps, switchToNativeApp, type NativeAppRuntimeState } from '../../lib/ipc/native-apps'
 import { ProfileForm } from './ProfileForm'
 import { ConfirmDialog } from '../../components/Modal'
 import { ImportExport } from './ImportExport'
@@ -28,14 +37,14 @@ import {
 } from '../../components/Icons'
 
 const defaultInput = (): WebAppProfileInput => ({
-  id: '',
+  id: undefined,
   name: '',
   startUrl: '',
   allowedOrigins: [],
   icon: undefined,
   group: undefined,
   pinned: true,
-  isolation: { partition: '' },
+  isolation: { partition: 'persist:draft' },
   externalLinks: { policy: 'open-in-popup' }
 })
 
@@ -54,13 +63,15 @@ function toFileUrl(filePath: string) {
   return `file://${encodeURI(normalized)}`
 }
 
-function getIconUrls(profile: WebAppProfile): string[] {
+function getIconUrls(profile: AppProfile): string[] {
   const urls: string[] = []
 
   if (profile.icon?.type === 'file') {
     urls.push(toFileUrl(profile.icon.value))
     return urls
   }
+
+  if (!isWebAppProfile(profile)) return urls
 
   try {
     const url = new URL(profile.startUrl)
@@ -73,7 +84,23 @@ function getIconUrls(profile: WebAppProfile): string[] {
   }
 }
 
-function ProfileIcon({ profile }: { profile: WebAppProfile }) {
+function describeNativeExecutable(profile: NativeAppProfile): string {
+  const exe = profile.executable
+  if (exe.path) return exe.path
+  if (exe.bundleId) return `Bundle ID：${exe.bundleId}`
+  if (exe.appName) return `应用：${exe.appName}`
+  if (exe.desktopEntry) return `Desktop Entry：${exe.desktopEntry}`
+  return '未配置启动方式'
+}
+
+function describeNativeStatus(state: NativeAppRuntimeState | undefined): string {
+  if (!state) return '状态未知'
+  if (!state.isRunning) return '未运行'
+  const pid = state.processId ? ` · PID ${state.processId}` : ''
+  return `运行中${pid}`
+}
+
+function ProfileIcon({ profile }: { profile: AppProfile }) {
   const [urlIndex, setUrlIndex] = useState(0)
   const iconUrls = useMemo(() => getIconUrls(profile), [profile])
   const currentUrl = iconUrls[urlIndex] ?? null
@@ -94,8 +121,24 @@ function ProfileIcon({ profile }: { profile: WebAppProfile }) {
   )
 }
 
-function toProfileInput(profile: WebAppProfile): WebAppProfileInput {
-  return {
+function toProfileInput(profile: AppProfile): AppProfileInput {
+  if (isNativeAppProfile(profile)) {
+    const input: NativeAppProfileInput = {
+      type: 'native',
+      id: profile.id,
+      name: profile.name,
+      executable: profile.executable,
+      launchArgs: profile.launchArgs,
+      workingDirectory: profile.workingDirectory,
+      icon: profile.icon,
+      group: profile.group,
+      pinned: profile.pinned,
+      order: profile.order
+    }
+    return input
+  }
+
+  const input: WebAppProfileInput = {
     id: profile.id,
     name: profile.name,
     startUrl: profile.startUrl,
@@ -106,27 +149,30 @@ function toProfileInput(profile: WebAppProfile): WebAppProfileInput {
     order: profile.order,
     window: profile.window,
     isolation: profile.isolation,
-    externalLinks: profile.externalLinks
+    externalLinks: profile.externalLinks,
+    temporary: profile.temporary
   }
+  return input
 }
 
 type LibraryScreen = { type: 'list' } | { type: 'create' } | { type: 'edit'; profileId: string }
 type LibraryNavigateRequest = { mode: 'edit' | 'reveal'; profileId: string; nonce: string }
 
 export function LibraryView(props: {
-  profiles: WebAppProfile[]
+  profiles: AppProfile[]
   activeProfileId: string | null
   navigate?: LibraryNavigateRequest
   onChanged: () => void
 }) {
   const [screen, setScreen] = useState<LibraryScreen>({ type: 'list' })
-  const [deleting, setDeleting] = useState<WebAppProfile | null>(null)
+  const [deleting, setDeleting] = useState<AppProfile | null>(null)
   const [query, setQuery] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingSection, setDraggingSection] = useState<'pinned' | 'unpinned' | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [revealTarget, setRevealTarget] = useState<{ profileId: string; nonce: string } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const [nativeStateById, setNativeStateById] = useState<Record<string, NativeAppRuntimeState>>({})
 
   useEffect(() => {
     const navigate = props.navigate
@@ -187,6 +233,34 @@ export function LibraryView(props: {
     return [...set].sort((a, b) => a.localeCompare(b))
   }, [props.profiles])
 
+  useEffect(() => {
+    const hasNative = props.profiles.some(isNativeAppProfile)
+    if (!hasNative) {
+      setNativeStateById({})
+      return
+    }
+
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const rows = await listNativeApps()
+        if (cancelled) return
+        const next: Record<string, NativeAppRuntimeState> = {}
+        for (const row of rows) next[row.profile.id] = row.state
+        setNativeStateById(next)
+      } catch {
+        if (!cancelled) setNativeStateById({})
+      }
+    }
+
+    void refresh()
+    const timer = window.setInterval(refresh, 2000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [props.profiles])
+
   const editingProfile = useMemo(() => {
     if (screen.type !== 'edit') return null
     return props.profiles.find((p) => p.id === screen.profileId) ?? null
@@ -206,7 +280,17 @@ export function LibraryView(props: {
       return a.name.localeCompare(b.name)
     })
     if (!q) return base
-    return base.filter((p) => `${p.name}\n${p.startUrl}`.toLowerCase().includes(q))
+    return base.filter((p) => {
+      const parts = [p.name]
+      if (isWebAppProfile(p)) parts.push(p.startUrl)
+      if (isNativeAppProfile(p)) {
+        if (p.executable.path) parts.push(p.executable.path)
+        if (p.executable.bundleId) parts.push(p.executable.bundleId)
+        if (p.executable.appName) parts.push(p.executable.appName)
+        if (p.executable.desktopEntry) parts.push(p.executable.desktopEntry)
+      }
+      return parts.join('\n').toLowerCase().includes(q)
+    })
   }, [props.profiles, query])
 
   const pinnedSorted = useMemo(() => sortPinnedProfiles(props.profiles), [props.profiles])
@@ -218,7 +302,7 @@ export function LibraryView(props: {
   const unpinnedInView = useMemo(() => filtered.filter((p) => !(p.pinned ?? true)), [filtered])
 
   const groupedPinned = useMemo(() => {
-    const map = new Map<string, WebAppProfile[]>()
+    const map = new Map<string, AppProfile[]>()
     for (const profile of pinnedInView) {
       const key = normalizeProfileGroup(profile.group)
       const list = map.get(key) ?? []
@@ -229,7 +313,7 @@ export function LibraryView(props: {
   }, [pinnedInView])
 
   const groupedUnpinned = useMemo(() => {
-    const map = new Map<string, WebAppProfile[]>()
+    const map = new Map<string, AppProfile[]>()
     for (const profile of unpinnedInView) {
       const key = normalizeProfileGroup(profile.group)
       const list = map.get(key) ?? []
@@ -239,18 +323,21 @@ export function LibraryView(props: {
     return [...map.entries()].map(([key, items]) => ({ key, name: key || '未分组', items }))
   }, [unpinnedInView])
 
-  async function onCreate(input: WebAppProfileInput) {
-    const id = input.id || crypto.randomUUID()
-    const patch: WebAppProfileInput = {
-      ...input,
-      id,
-      isolation: { partition: `persist:${id}` }
+  async function onCreate(input: AppProfileInput) {
+    if (input.type === 'native') {
+      await createProfile(input)
+      props.onChanged()
+      return
     }
+
+    const webInput = input as WebAppProfileInput
+    const id = webInput.id || crypto.randomUUID()
+    const patch: WebAppProfileInput = { ...webInput, id, isolation: { partition: `persist:${id}` } }
     await createProfile(patch)
     props.onChanged()
   }
 
-  async function onUpdate(profileId: string, patch: Partial<WebAppProfileInput>) {
+  async function onUpdate(profileId: string, patch: Partial<AppProfileInput>) {
     await updateProfile(profileId, patch)
     props.onChanged()
   }
@@ -311,7 +398,7 @@ export function LibraryView(props: {
     props.onChanged()
   }
 
-  async function togglePinned(profile: WebAppProfile) {
+  async function togglePinned(profile: AppProfile) {
     const nextPinned = !(profile.pinned ?? true)
     if (!nextPinned) {
       await updateProfile(profile.id, { pinned: false })
@@ -405,11 +492,14 @@ export function LibraryView(props: {
                     <div className="flex flexCol gap2">
                       {group.items.map((p) => {
                         const isActive = props.activeProfileId === p.id
+                        const isNative = isNativeAppProfile(p)
+                        const nativeState = isNative ? nativeStateById[p.id] : undefined
                         const isPinned = p.pinned ?? true
                         const isDragOver = dragOverId === p.id
                         const isDragging = draggingId === p.id
                         const canDrag = dragEnabled && isPinned
                         const isRevealed = revealTarget?.profileId === p.id
+                        const secondaryText = isWebAppProfile(p) ? p.startUrl : describeNativeExecutable(p)
 
                         return (
                           <div
@@ -453,8 +543,35 @@ export function LibraryView(props: {
                               <ProfileIcon profile={p} />
                             </div>
                             <div className="listItemContent">
-                              <div className="listItemName">{p.name}</div>
-                              <div className="listItemUrl">{p.startUrl}</div>
+                              <div className="listItemName" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>{p.name}</span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    padding: '2px 6px',
+                                    borderRadius: 999,
+                                    border: '1px solid var(--border-color)',
+                                    color: 'var(--text-muted)'
+                                  }}
+                                >
+                                  {isNative ? '原生' : 'Web'}
+                                </span>
+                                {isNative && (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      padding: '2px 6px',
+                                      borderRadius: 999,
+                                      border: '1px solid var(--border-color)',
+                                      color: nativeState?.isRunning ? 'var(--success-color)' : 'var(--text-muted)'
+                                    }}
+                                    title={nativeState?.launchError ? nativeState.launchError : undefined}
+                                  >
+                                    {describeNativeStatus(nativeState)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="listItemUrl">{secondaryText}</div>
                             </div>
                             <div className="listItemActions">
                               {isPinned && (
@@ -504,10 +621,17 @@ export function LibraryView(props: {
                               </button>
                               <button
                                 className="btn btnSm btnPrimary"
-                                onClick={() => (isActive ? reloadProfile(p.id) : switchProfile(p.id))}
+                                onClick={() => {
+                                  if (isWebAppProfile(p)) {
+                                    if (isActive) void reloadProfile(p.id)
+                                    else void switchProfile(p.id)
+                                    return
+                                  }
+                                  void switchToNativeApp(p.id)
+                                }}
                               >
-                                {isActive ? <IconRefresh /> : <IconExternalLink />}
-                                {isActive ? '刷新' : '打开'}
+                                {isWebAppProfile(p) && isActive ? <IconRefresh /> : <IconExternalLink />}
+                                {isWebAppProfile(p) && isActive ? '刷新' : isNative && nativeState?.isRunning ? '置前' : '打开'}
                               </button>
                             </div>
                           </div>
@@ -540,11 +664,14 @@ export function LibraryView(props: {
                     <div className="flex flexCol gap2">
                       {group.items.map((p) => {
                         const isActive = props.activeProfileId === p.id
+                        const isNative = isNativeAppProfile(p)
+                        const nativeState = isNative ? nativeStateById[p.id] : undefined
                         const isPinned = p.pinned ?? true
                         const isDragOver = dragOverId === p.id
                         const isDragging = draggingId === p.id
                         const canDrag = dragEnabled && !isPinned
                         const isRevealed = revealTarget?.profileId === p.id
+                        const secondaryText = isWebAppProfile(p) ? p.startUrl : describeNativeExecutable(p)
                         return (
                           <div
                             key={p.id}
@@ -587,8 +714,35 @@ export function LibraryView(props: {
                               <ProfileIcon profile={p} />
                             </div>
                             <div className="listItemContent">
-                              <div className="listItemName">{p.name}</div>
-                              <div className="listItemUrl">{p.startUrl}</div>
+                              <div className="listItemName" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>{p.name}</span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    padding: '2px 6px',
+                                    borderRadius: 999,
+                                    border: '1px solid var(--border-color)',
+                                    color: 'var(--text-muted)'
+                                  }}
+                                >
+                                  {isNative ? '原生' : 'Web'}
+                                </span>
+                                {isNative && (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      padding: '2px 6px',
+                                      borderRadius: 999,
+                                      border: '1px solid var(--border-color)',
+                                      color: nativeState?.isRunning ? 'var(--success-color)' : 'var(--text-muted)'
+                                    }}
+                                    title={nativeState?.launchError ? nativeState.launchError : undefined}
+                                  >
+                                    {describeNativeStatus(nativeState)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="listItemUrl">{secondaryText}</div>
                             </div>
                             <div className="listItemActions">
                               <button
@@ -620,10 +774,17 @@ export function LibraryView(props: {
                               </button>
                               <button
                                 className="btn btnSm btnPrimary"
-                                onClick={() => (isActive ? reloadProfile(p.id) : switchProfile(p.id))}
+                                onClick={() => {
+                                  if (isWebAppProfile(p)) {
+                                    if (isActive) void reloadProfile(p.id)
+                                    else void switchProfile(p.id)
+                                    return
+                                  }
+                                  void switchToNativeApp(p.id)
+                                }}
                               >
-                                {isActive ? <IconRefresh /> : <IconExternalLink />}
-                                {isActive ? '刷新' : '打开'}
+                                {isWebAppProfile(p) && isActive ? <IconRefresh /> : <IconExternalLink />}
+                                {isWebAppProfile(p) && isActive ? '刷新' : isNative && nativeState?.isRunning ? '置前' : '打开'}
                               </button>
                             </div>
                           </div>
@@ -652,7 +813,13 @@ export function LibraryView(props: {
               <IconChevronLeft />
               返回
             </button>
-            <div className="libraryFormTitle">{screen.type === 'create' ? '添加 Web 应用' : '编辑 Web 应用'}</div>
+            <div className="libraryFormTitle">
+              {screen.type === 'create'
+                ? '添加应用'
+                : editingProfile && isNativeAppProfile(editingProfile)
+                  ? '编辑原生应用'
+                  : '编辑 Web 应用'}
+            </div>
           </div>
 
           {screen.type === 'edit' && !editingProfile ? (

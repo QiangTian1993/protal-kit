@@ -5,6 +5,7 @@
 ## 功能概览
 
 - 多 Web 应用切换：每个 Profile 使用独立 `partition`，避免会话串号
+- 原生应用集成：支持将 macOS/Windows/Linux 原生应用加入库，并通过侧边栏 / 命令面板统一切换
 - 工作区恢复：记录上次打开的应用与最后访问 URL，重启后尽量恢复
 - 导航白名单：仅允许 `allowedOrigins` 内导航（降低被重定向到恶意站点的风险）
 - 外链策略：`open-in-popup` / `open-in-system` / `block` / `ask`，适配 OAuth/SSO 弹窗回跳
@@ -64,7 +65,7 @@ npm run dist  # 生成安装包/可分发产物
 
 数据目录：`app.getPath('userData')/data`，主要文件：
 
-- `profiles.json`：Profile 列表（Web 应用配置）
+- `profiles.json`：Profile 列表（Web + 原生应用配置）
 - `workspace.json`：工作区（打开的 Profile、活跃项、每个 Profile 的 lastUrl 等）
 - `app-config.json`：全局配置（语言等）
 
@@ -80,11 +81,21 @@ npm run dist  # 生成安装包/可分发产物
 常用字段（精简）：
 
 - `name`：显示名称
-- `startUrl`：入口 URL
+- `type`：`web`（默认）/ `native`
+- `startUrl`：入口 URL（仅 Web）
 - `allowedOrigins`：允许导航的源（创建/更新时会自动包含 `startUrl` 的 origin）
 - `isolation.partition`：会话隔离标识（不同 Profile 不共享 cookie/session）
 - `externalLinks.policy`：外链策略（见上）
 - `group` / `pinned` / `order`：侧边栏分组与排序
+
+原生应用相关字段（精简）：
+
+- `executable.path`：可执行路径 / 应用路径（Windows/macOS/Linux）
+- `executable.bundleId`：Bundle ID（macOS）
+- `executable.appName`：应用名称（Windows，可选）
+- `executable.desktopEntry`：Desktop Entry（Linux）
+- `launchArgs`：启动参数（可选，每行一个）
+- `workingDirectory`：工作目录（可选）
 
 ## 安全基线（摘要）
 
@@ -113,9 +124,9 @@ docs/          # 项目文档
 ## 文档
 
 - 开源与治理策略：`docs/OPEN_SOURCE.md`
+- 原生应用使用指南：`docs/native-apps-guide.md`
 - 需求与合同（示例）：`specs/001-web-app-switching/`
 
 ## License
 
 MIT（见 `LICENSE`）。
-

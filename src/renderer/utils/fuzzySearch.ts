@@ -1,13 +1,13 @@
-import type { WebAppProfile } from '../../shared/types'
+import { isNativeAppProfile, isWebAppProfile, type AppProfile } from '../../shared/types'
 
 export type MatchRange = { start: number; end: number }
 
 export type FuzzySearchResult = {
-  profile: WebAppProfile
+  profile: AppProfile
   score: number
   matches: {
     name: MatchRange[]
-    startUrl: MatchRange[]
+    detail: MatchRange[]
     group: MatchRange[]
   }
 }
@@ -18,7 +18,7 @@ export type FuzzySearchResult = {
  *
  * 返回结果包含匹配范围，用于 UI 高亮。
  */
-export function fuzzySearch(profiles: WebAppProfile[], query: string): FuzzySearchResult[] {
+export function fuzzySearch(profiles: AppProfile[], query: string): FuzzySearchResult[] {
   const normalizedQuery = query.toLowerCase().trim()
   if (!normalizedQuery) return []
 
@@ -26,11 +26,22 @@ export function fuzzySearch(profiles: WebAppProfile[], query: string): FuzzySear
 
   for (const profile of profiles) {
     const name = profile.name
-    const startUrl = profile.startUrl
+    const detail = isWebAppProfile(profile)
+      ? profile.startUrl
+      : isNativeAppProfile(profile)
+        ? [
+            profile.executable.path,
+            profile.executable.bundleId,
+            profile.executable.appName,
+            profile.executable.desktopEntry
+          ]
+            .filter(Boolean)
+            .join(' ')
+        : ''
     const group = profile.group ?? ''
 
     const nameLower = name.toLowerCase()
-    const urlLower = startUrl.toLowerCase()
+    const detailLower = detail.toLowerCase()
     const groupLower = group.toLowerCase()
 
     let score = 0
@@ -43,8 +54,8 @@ export function fuzzySearch(profiles: WebAppProfile[], query: string): FuzzySear
       score += 500
     }
 
-    const urlSubstringIndex = urlLower.indexOf(normalizedQuery)
-    if (urlSubstringIndex >= 0) score += 300
+    const detailSubstringIndex = detailLower.indexOf(normalizedQuery)
+    if (detailSubstringIndex >= 0) score += 300
 
     const groupSubstringIndex = groupLower.indexOf(normalizedQuery)
     if (groupSubstringIndex >= 0) score += 200
@@ -68,10 +79,10 @@ export function fuzzySearch(profiles: WebAppProfile[], query: string): FuzzySear
             : nameSubsequence
               ? indicesToRanges(nameSubsequence.indices)
               : [],
-        startUrl:
-          urlSubstringIndex >= 0
-            ? [{ start: urlSubstringIndex, end: urlSubstringIndex + normalizedQuery.length }]
-            : computeSubsequenceRanges(urlLower, normalizedQuery),
+        detail:
+          detailSubstringIndex >= 0
+            ? [{ start: detailSubstringIndex, end: detailSubstringIndex + normalizedQuery.length }]
+            : computeSubsequenceRanges(detailLower, normalizedQuery),
         group: group
           ? groupSubstringIndex >= 0
             ? [{ start: groupSubstringIndex, end: groupSubstringIndex + normalizedQuery.length }]
@@ -85,7 +96,7 @@ export function fuzzySearch(profiles: WebAppProfile[], query: string): FuzzySear
   return results
 }
 
-export function fuzzySearchProfiles(profiles: WebAppProfile[], query: string): WebAppProfile[] {
+export function fuzzySearchProfiles(profiles: AppProfile[], query: string): AppProfile[] {
   return fuzzySearch(profiles, query).map((r) => r.profile)
 }
 

@@ -5,6 +5,15 @@ import { UI_TOPBAR_HEIGHT } from './main-window'
 
 const SETTINGS_DRAWER_WIDTH = 800
 
+function destroyWebContents(webContents: BrowserView['webContents']) {
+  const candidate = webContents as unknown as { destroy?: () => void; close?: () => void }
+  if (typeof candidate.destroy === 'function') {
+    candidate.destroy()
+    return
+  }
+  candidate.close?.()
+}
+
 export class SettingsWindowManager {
   private view: BrowserView | null = null
   private drawerOpened = false
@@ -154,7 +163,7 @@ export class SettingsWindowManager {
     } finally {
       this.pendingMessages = []
       this.drawerReady = false
-      this.view.webContents.destroy()
+      destroyWebContents(this.view.webContents)
       this.view = null
     }
   }

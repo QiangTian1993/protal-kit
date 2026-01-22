@@ -1,10 +1,10 @@
-import type { WebAppProfile, WebAppProfileInput } from '../../shared/types'
+import { isWebAppProfile, type AppProfile, type AppProfileInput } from '../../shared/types'
 
 export function normalizeProfileGroup(value: string | undefined) {
   return (value ?? '').trim()
 }
 
-function compareByGroupOrderName(a: WebAppProfile, b: WebAppProfile) {
+function compareByGroupOrderName(a: AppProfile, b: AppProfile) {
   const aGroup = normalizeProfileGroup(a.group)
   const bGroup = normalizeProfileGroup(b.group)
   if (aGroup !== bGroup) return aGroup.localeCompare(bGroup)
@@ -13,22 +13,22 @@ function compareByGroupOrderName(a: WebAppProfile, b: WebAppProfile) {
   return a.name.localeCompare(b.name)
 }
 
-export function sortPinnedProfiles(profiles: WebAppProfile[]) {
-  // 只显示固定应用，不显示临时应用
+export function sortPinnedProfiles(profiles: AppProfile[]) {
+  // 只显示固定应用，不显示临时应用（仅 Web 应用存在 temporary）
   return [...profiles]
-    .filter((p) => !p.temporary && (p.pinned ?? true))
+    .filter((p) => !(isWebAppProfile(p) && p.temporary) && (p.pinned ?? true))
     .sort(compareByGroupOrderName)
 }
 
-export function sortUnpinnedProfiles(profiles: WebAppProfile[]) {
+export function sortUnpinnedProfiles(profiles: AppProfile[]) {
   return [...profiles].filter((p) => !(p.pinned ?? true)).sort(compareByGroupOrderName)
 }
 
 export function computeGroupReorderItems(args: {
-  profiles: WebAppProfile[]
+  profiles: AppProfile[]
   sourceId: string
   targetId: string
-}): Array<{ profileId: string; patch: Partial<WebAppProfileInput> }> {
+}): Array<{ profileId: string; patch: Partial<AppProfileInput> }> {
   const { profiles, sourceId, targetId } = args
   if (sourceId === targetId) return []
 
@@ -40,7 +40,7 @@ export function computeGroupReorderItems(args: {
   const targetGroup = normalizeProfileGroup(target.group)
 
   const originalById = new Map(profiles.map((p) => [p.id, p]))
-  const groupMap = new Map<string, WebAppProfile[]>()
+  const groupMap = new Map<string, AppProfile[]>()
   for (const profile of profiles) {
     const key = normalizeProfileGroup(profile.group)
     const list = groupMap.get(key) ?? []
@@ -65,7 +65,7 @@ export function computeGroupReorderItems(args: {
   groupMap.set(targetGroup, targetList)
 
   const affected = new Set([sourceGroup, targetGroup])
-  const items: Array<{ profileId: string; patch: Partial<WebAppProfileInput> }> = []
+  const items: Array<{ profileId: string; patch: Partial<AppProfileInput> }> = []
   for (const groupKey of affected) {
     const list = groupMap.get(groupKey) ?? []
     for (const [idx, profile] of list.entries()) {
@@ -82,9 +82,9 @@ export function computeGroupReorderItems(args: {
 }
 
 export function computePinnedReorderItems(args: {
-  pinned: WebAppProfile[]
+  pinned: AppProfile[]
   sourceId: string
   targetId: string
-}): Array<{ profileId: string; patch: Partial<WebAppProfileInput> }> {
+}): Array<{ profileId: string; patch: Partial<AppProfileInput> }> {
   return computeGroupReorderItems({ profiles: args.pinned, sourceId: args.sourceId, targetId: args.targetId })
 }

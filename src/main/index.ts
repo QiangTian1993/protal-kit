@@ -11,19 +11,30 @@ import { profilesPath, workspacePath, appConfigPath } from './storage/paths'
 import { AppConfigStore } from './storage/app-config-store'
 import { LinkRouterService } from './routing/link-router-service'
 import { attachKeyboardShortcuts } from './policy/keyboard-shortcuts'
+import { NativeAppLauncher } from './apps/native-app-launcher'
+import { NativeAppManager } from './apps/native-app-manager'
+import { UnifiedAppManager } from './apps/app-manager'
+import { migrateLegacyUserDataIfNeeded } from './app/user-data-migration'
 
 const logger = createLogger()
 
+if (process.env.PORTAL_KIT_USER_DATA_DIR) {
+  app.setPath('userData', process.env.PORTAL_KIT_USER_DATA_DIR)
+}
+
 // 注册自定义协议处理器
-if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('portalkit', process.execPath, [process.argv[1]])
+if (process.env.PORTAL_KIT_SKIP_DEFAULT_PROTOCOL_REGISTRATION !== '1') {
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient('portalkit', process.execPath, [process.argv[1]])
+    }
+  } else {
+    app.setAsDefaultProtocolClient('portalkit')
   }
-} else {
-  app.setAsDefaultProtocolClient('portalkit')
 }
 
 app.whenReady().then(async () => {
+  await migrateLegacyUserDataIfNeeded(logger)
   const appConfig = new AppConfigStore(appConfigPath())
   const config = await appConfig.load().catch(() => null)
   const win = createMainWindow({
@@ -48,6 +59,9 @@ app.whenReady().then(async () => {
     logger,
     notify: (channel, payload) => win.webContents.send(channel, payload)
   })
+  const nativeLauncher = new NativeAppLauncher({ logger })
+  const nativeApps = new NativeAppManager({ launcher: nativeLauncher, profiles, logger })
+  const appManager = new UnifiedAppManager({ profiles, webapps, nativeApps, logger })
   const settingsWindow = new SettingsWindowManager(win)
 
   Menu.setApplicationMenu(
@@ -107,6 +121,8 @@ app.whenReady().then(async () => {
     profiles,
     workspace,
     webapps,
+    appManager,
+    nativeApps,
     logger,
     settingsWindow,
     appConfig,
@@ -228,5 +244,5 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin' || process.env.PORTAL_KIT_E2E === '1') app.quit()
 })

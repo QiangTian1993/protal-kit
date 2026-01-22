@@ -5,6 +5,7 @@ import { registerProfilesHandlers } from './handlers/profiles'
 import { registerWorkspaceHandlers } from './handlers/workspace'
 import { registerDataHandlers } from './handlers/data'
 import { registerWebAppsHandlers } from './handlers/webapps'
+import { registerNativeAppsHandlers } from './handlers/native-apps'
 import { registerAppHandlers } from './handlers/app'
 import { registerRoutingHandlers } from './handlers/routing'
 import type { WebAppManager } from '../webapps/webapp-manager'
@@ -12,11 +13,15 @@ import type { AppConfigStore } from '../storage/app-config-store'
 import type { Logger } from '../observability/logger'
 import type { SettingsWindowManager } from '../windows/settings-window'
 import type { LinkRouterService } from '../routing/link-router-service'
+import type { UnifiedAppManager } from '../apps/app-manager'
+import type { NativeAppManager } from '../apps/native-app-manager'
 
 export interface IpcContext {
   profiles: ProfileStore
   workspace: WorkspaceStore
   webapps: WebAppManager
+  appManager?: UnifiedAppManager
+  nativeApps?: NativeAppManager
   logger: Logger
   settingsWindow: SettingsWindowManager
   appConfig: AppConfigStore
@@ -30,5 +35,6 @@ export function registerIpcHandlers(ctx: IpcContext) {
   registerWorkspaceHandlers(ipcMain, ctx)
   registerDataHandlers(ipcMain, ctx)
   registerWebAppsHandlers(ipcMain, ctx)
+  registerNativeAppsHandlers(ipcMain, ctx)
   registerRoutingHandlers(ipcMain, ctx)
 }
